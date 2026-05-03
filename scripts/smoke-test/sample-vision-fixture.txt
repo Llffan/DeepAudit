@@ -1,0 +1,11 @@
+DashScope vision smoke-test fixture
+
+The dashscope-vision.sh script uses an inline 1x1 transparent PNG as
+its image payload. The goal is to prove that:
+  1. The HTTP path / auth header / multimodal request shape is correct.
+  2. The qwen-vl-max model accepts the call and returns a non-error
+     response (it does not matter what the description says — even
+     "图像内容无法识别" counts as a passing connectivity test).
+
+Phase 3 (`03-*-PLAN.md`) will replace this with PDFBox-rendered PNGs
+of real 病案首页 pages at DPI 200 (per D-016).
