@@ -1,6 +1,65 @@
-# Local secrets — never commit
+# ============================================================
+# DeepAudit MVP repository .gitignore
+# Owners: Phase 0 (this file). Backend/frontend have their own
+# .gitignore for tool-specific entries.
+# ============================================================
+
+# ---- Secrets ----
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
 .token
 *.token
+secrets/
 
-# Claude Code workspace
+# ---- Backend (Maven / Spring) ----
+backend/target/
+backend/*.iml
+backend/.idea/
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/HELP.md
+
+# ---- Frontend (Node / Vite) ----
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
+frontend/.cache/
+frontend/.turbo/
+
+# ---- Runtime artifacts ----
+uploads/
+backend/uploads/
+*.log
+logs/
+
+# ---- Data — PHI-bearing artifacts must NEVER be committed ----
+# Demo PDFs are kept LOCAL to the operator's machine; the data/samples
+# folder is shipped only as a placeholder + README (see C-regulatory-003).
+data/samples/*.pdf
+data/samples/*.PDF
+data/samples/*.png
+data/samples/*.jpg
+
+# ---- ICD seed: CSV is allowed (it's public reference data); the offline
+#      embedding-generated SQL pack is NOT committed (Phase 1 generates
+#      it locally; size is large and not source-of-truth).
+data/icd/*.sql
+data/icd/.cache/
+
+# ---- IDE / OS ----
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ---- Docker ----
+.docker-compose-state/
+
+# ---- Claude Code workspace ----
 .claude/
