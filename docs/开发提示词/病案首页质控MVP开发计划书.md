@@ -317,9 +317,9 @@ erDiagram
         date effective_from "预留"
         date effective_to "预留"
         vector description_embedding "1024 维"
-        timestamp created_at
-        timestamp updated_at
-        timestamp deleted_at "软删除"
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at "软删除"
     }
 
     MEDICAL_RECORD_MAIN {
@@ -329,8 +329,9 @@ erDiagram
         varchar status "draft/confirmed/checked"
         varchar source_pdf_path
         numeric extraction_confidence
-        timestamp created_at
-        timestamp updated_at
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at "软删除"
     }
 
     MEDICAL_RECORD_EXTRA {
@@ -349,9 +350,9 @@ erDiagram
         text field_value_snapshot
         text hit_message
         text llm_explanation "缓存"
-        timestamp llm_explained_at
+        timestamptz llm_explained_at
         varchar status "open/acknowledged/false_positive"
-        timestamp created_at
+        timestamptz created_at
     }
 
     ICD_DICT {
@@ -370,9 +371,10 @@ erDiagram
 |---|---|
 | **主键** | 所有表用 `BIGSERIAL`，简单且演示友好。后续可平滑迁雪花 ID。 |
 | **审计字段** | `created_at` / `updated_at` 由 JPA `@PrePersist` / `@PreUpdate` 自动维护。 |
-| **软删除** | `qc_rule` 表用 `deleted_at` 标记软删除；查询统一带 `WHERE deleted_at IS NULL`。**已启用规则不可硬删除**（处置策略详见 §5.3）。 |
+| **软删除** | `qc_rule` 与 `medical_record_main` 都用 `deleted_at` 标记软删除（病案是 PHI，不可硬删）；查询统一带 `WHERE deleted_at IS NULL`，主键索引相应做成 partial。**已启用规则不可硬删除**（处置策略详见 §5.3）。 |
 | **快照字段** | `check_result` 中的 `rule_code_snapshot` / `rule_severity_snapshot` / `field_value_snapshot` 是**写时快照**，规则后续修改不影响历史检查结果，可追溯。 |
-| **向量列** | 用 pgvector 的 `vector(1024)` 类型，对应通义千问 `text-embedding-v3` 输出维度。建索引：`CREATE INDEX ON qc_rule USING ivfflat (description_embedding vector_cosine_ops)`. |
+| **时间戳类型** | 所有审计/事件时间用 `TIMESTAMPTZ`（带时区）。病案跨院导入存在时区差异，裸 `TIMESTAMP` 会丢失这一信息。|
+| **向量列** | 用 pgvector 的 `vector(1024)` 类型，对应通义千问 `text-embedding-v3` 输出维度。**向量索引（ivfflat）不在 V1 迁移里建**：ivfflat 在建索引那一刻完成聚类，空表/小表上建出来的聚类质量很差。改为：V1 只建普通索引；ICD 字典灌库与 qc_rule 种子规则 embedding 回填**之后**，单独迁移建 ivfflat 索引并显式指定 `WITH (lists = N)`（推荐 `lists ≈ √rows`，例如 4.6 万 ICD 用 `lists=200`）。 |
 | **字段命名** | 数据库下划线（`record_no`），Java 实体驼峰（`recordNo`），由 JPA 默认 `SnakeCaseStrategy` 自动映射。 |
 
 ### 4.3 `qc_rule` 规则表
@@ -381,7 +383,7 @@ erDiagram
 
 ```sql
 CREATE TABLE qc_rule (
-    id                       BIGSERIAL PRIMARY KEY,
+    id                       BIGSERIAL    PRIMARY KEY,
     code                     VARCHAR(64)  NOT NULL UNIQUE,
     name                     VARCHAR(200) NOT NULL,
     description              TEXT,
@@ -396,15 +398,17 @@ CREATE TABLE qc_rule (
     effective_from           DATE,
     effective_to             DATE,
     description_embedding    VECTOR(1024),
-    created_at               TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at               TIMESTAMP    NOT NULL DEFAULT NOW(),
-    deleted_at               TIMESTAMP
+    created_at               TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at               TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    deleted_at               TIMESTAMPTZ
 );
 
-CREATE INDEX idx_qc_rule_enabled    ON qc_rule(enabled) WHERE deleted_at IS NULL;
+CREATE INDEX idx_qc_rule_enabled    ON qc_rule(enabled)   WHERE deleted_at IS NULL;
 CREATE INDEX idx_qc_rule_dimension  ON qc_rule(dimension) WHERE deleted_at IS NULL;
-CREATE INDEX idx_qc_rule_embedding  ON qc_rule USING ivfflat
-                                       (description_embedding vector_cosine_ops);
+-- ivfflat 向量索引在 §4.2 约定下延后建（V1 不建），等 description_embedding
+-- 完成种子回填后用单独迁移加：
+--   CREATE INDEX idx_qc_rule_embedding ON qc_rule USING ivfflat
+--       (description_embedding vector_cosine_ops) WITH (lists = 100);
 ```
 
 #### 规则 DSL 设计（`expression` 字段）
@@ -438,6 +442,8 @@ JSON DSL 支持嵌套布尔运算 + 字段操作 + 可选 `when` 触发条件：
 | 字符串 | `contains`, `matches` (正则) |
 
 **为什么用 JSON DSL 而不是表达式字符串**：① 前端可可视化树形编辑；② LLM 生成稳定（结构化输出 JSON Schema 约束）；③ 序列化/版本对比/字段重命名工具友好。
+
+> **MVP DSL 限制：`field` 仅支持 `medical_record_main` 的列名（如 `mainOperationCode`），不支持指向 `medical_record_extra.extra_fields` 内嵌路径**（如 `extraFields.birthWeight`）。也就是说：未入选 30 主字段、被兜底进 JSONB 的字段，**MVP 阶段无法被规则引擎引用**。需要这类规则时（例：年龄 < 1 → 出生体重必填）必须先把目标字段从 `extra_fields` 提升到主表，或者在 DSL 引擎里增加 JSONB path 操作符。规则配置界面应在用户选字段时只展示主表字段。
 
 #### 两条 MVP 种子规则的 DSL 示例
 
@@ -489,7 +495,7 @@ JSON DSL 支持嵌套布尔运算 + 字段操作 + 可选 `when` 触发条件：
 
 ```sql
 CREATE TABLE medical_record_main (
-    id                      BIGSERIAL PRIMARY KEY,
+    id                      BIGSERIAL    PRIMARY KEY,
 
     -- 基本信息（6）
     record_no               VARCHAR(64)  NOT NULL,
@@ -537,18 +543,23 @@ CREATE TABLE medical_record_main (
     status                  VARCHAR(20)  NOT NULL DEFAULT 'draft'
                             CHECK (status IN ('draft','confirmed','checked')),
 
-    created_at              TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at              TIMESTAMP    NOT NULL DEFAULT NOW()
+    created_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    deleted_at              TIMESTAMPTZ,
+
+    -- 同一来源 + 同一外院病案号必须唯一，避免重复上传同一份 PDF
+    -- 时静默插入两条记录。
+    CONSTRAINT uq_mrm_source_record UNIQUE (source_hospital, record_no)
 );
 
-CREATE INDEX idx_mrm_record_no  ON medical_record_main(record_no);
-CREATE INDEX idx_mrm_status     ON medical_record_main(status);
+CREATE INDEX idx_mrm_record_no  ON medical_record_main(record_no) WHERE deleted_at IS NULL;
+CREATE INDEX idx_mrm_status     ON medical_record_main(status)    WHERE deleted_at IS NULL;
 
 CREATE TABLE medical_record_extra (
-    id              BIGSERIAL PRIMARY KEY,
-    record_id       BIGINT NOT NULL UNIQUE
+    id              BIGSERIAL    PRIMARY KEY,
+    record_id       BIGINT       NOT NULL UNIQUE
                      REFERENCES medical_record_main(id) ON DELETE CASCADE,
-    extra_fields    JSONB  NOT NULL DEFAULT '{}'::jsonb
+    extra_fields    JSONB        NOT NULL DEFAULT '{}'::jsonb
 );
 ```
 
@@ -565,7 +576,7 @@ draft  ─[用户确认/修正]─►  confirmed  ─[执行规则检查]─► 
 
 ```sql
 CREATE TABLE check_result (
-    id                      BIGSERIAL PRIMARY KEY,
+    id                      BIGSERIAL    PRIMARY KEY,
     record_id               BIGINT       NOT NULL
                             REFERENCES medical_record_main(id) ON DELETE CASCADE,
     rule_id                 BIGINT       NOT NULL REFERENCES qc_rule(id),
@@ -583,13 +594,13 @@ CREATE TABLE check_result (
 
     -- LLM 解释缓存（首次点击查看时生成并缓存）
     llm_explanation         TEXT,
-    llm_explained_at        TIMESTAMP,
+    llm_explained_at        TIMESTAMPTZ,
 
     -- 用户处置
     status                  VARCHAR(20)  NOT NULL DEFAULT 'open'
                             CHECK (status IN ('open','acknowledged','false_positive')),
 
-    created_at              TIMESTAMP    NOT NULL DEFAULT NOW()
+    created_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_cr_record  ON check_result(record_id);
@@ -606,20 +617,22 @@ CREATE INDEX idx_cr_status  ON check_result(status);
 
 ```sql
 CREATE TABLE icd_dict (
-    id              BIGSERIAL PRIMARY KEY,
+    id              BIGSERIAL    PRIMARY KEY,
     code            VARCHAR(32)  NOT NULL,
     name            VARCHAR(500) NOT NULL,
     category        VARCHAR(20)  NOT NULL CHECK (category IN ('icd10','icd9cm3')),
     version         VARCHAR(20)  NOT NULL,   -- 例 "ICD-10 国临版 2.0"
     name_embedding  VECTOR(1024),
-    created_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
 
     UNIQUE (code, category, version)
 );
 
-CREATE INDEX idx_icd_category   ON icd_dict(category);
-CREATE INDEX idx_icd_embedding  ON icd_dict USING ivfflat
-                                  (name_embedding vector_cosine_ops);
+CREATE INDEX idx_icd_category ON icd_dict(category);
+-- ivfflat 向量索引在 ICD 字典灌库**之后**单独迁移建（参 §4.2）：
+--   CREATE INDEX idx_icd_embedding ON icd_dict USING ivfflat
+--       (name_embedding vector_cosine_ops) WITH (lists = 200);
+-- 4.6 万行用 lists=200（约 √rows）平衡召回与查询速度。
 ```
 
 **种子数据来源**：

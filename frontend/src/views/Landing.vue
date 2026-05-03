@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 
+const router = useRouter();
 const backendStatus = ref<'unknown' | 'up' | 'down'>('unknown');
 const backendError = ref<string | null>(null);
 
@@ -29,6 +31,12 @@ onMounted(checkBackend);
     <h1>DeepAudit · 病案首页质控 MVP</h1>
     <p class="tagline">PDF 导入 → 规则配置 → 自动检查 → 结果展示</p>
 
+    <nav class="entry-nav">
+      <el-button type="primary" size="large" @click="router.push('/import')">
+        进入病案录入
+      </el-button>
+    </nav>
+
     <section class="status">
       <h2>Backend Health</h2>
       <p>
@@ -50,6 +58,7 @@ onMounted(checkBackend);
 <style scoped>
 .landing { max-width: 720px; margin: 4rem auto; padding: 0 1rem; }
 .tagline { color: #666; }
+.entry-nav { margin-top: 1.5rem; }
 .status { margin-top: 2rem; padding: 1rem 1.5rem; border: 1px solid #eee; border-radius: 8px; }
 .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.85em; margin-right: 0.5rem; }
 .badge.up { background: #e6f7ec; color: #1f7a3a; }
