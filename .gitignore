@@ -42,6 +42,9 @@ data/samples/*.pdf
 data/samples/*.PDF
 data/samples/*.png
 data/samples/*.jpg
+# Ground-truth JSON paired with sample PDFs by scripts/sample_pdf/.
+# These mirror PHI-bearing field values, so keep them out of git too.
+data/samples/*.json
 
 # ---- ICD seed: CSV is allowed (it's public reference data); the offline
 #      embedding-generated SQL pack is NOT committed (Phase 1 generates
@@ -60,6 +63,13 @@ Thumbs.db
 
 # ---- Docker ----
 .docker-compose-state/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
 
 # ---- Claude Code workspace ----
 .claude/
