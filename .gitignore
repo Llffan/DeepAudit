@@ -63,3 +63,7 @@ Thumbs.db
 
 # ---- Claude Code workspace ----
 .claude/
+
+# ---- Claude Code conversation exports (/export command) ----
+# Matches root-level files named YYYY-MM-DD-*.txt
+/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.txt
