@@ -54,6 +54,16 @@
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
 
+        <!-- Flyway DB migrations (Phase 1 T1.1). Version managed by the
+             spring-boot-starter-parent BOM (Boot 3.2.5 -> Flyway 9.22.x).
+             Flyway 9 bundles PostgreSQL support; the separate
+             flyway-database-postgresql module only exists from Flyway 10+
+             and is NOT needed here. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
         <!-- PostgreSQL JDBC driver (pinned) -->
         <dependency>
             <groupId>org.postgresql</groupId>

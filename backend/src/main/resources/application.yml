@@ -11,6 +11,20 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:deepaudit}
     password: ${SPRING_DATASOURCE_PASSWORD:deepaudit}
     driver-class-name: org.postgresql.Driver
+  flyway:
+    # `enabled: true` and `locations: classpath:db/migration` are Spring
+    # Boot defaults; migrations live at
+    # backend/src/main/resources/db/migration/V*.sql.
+    #
+    # baseline-on-migrate / baseline-version handle the "DB already has
+    # the V1 tables but no flyway_schema_history" case -- which is
+    # exactly the state if you applied V1 manually before Flyway was
+    # wired in. With baseline-version=1, the first run on such a DB
+    # stamps it as already at V1 (no SQL re-executed) and only future
+    # V2/V3 will run. On a truly empty DB, baseline does NOT trigger
+    # and V1 runs normally.
+    baseline-on-migrate: true
+    baseline-version: 1
 
 management:
   endpoints:
