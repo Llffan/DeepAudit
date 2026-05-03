@@ -6,9 +6,13 @@ const routes: RouteRecordRaw[] = [
     name: 'landing',
     component: () => import('@/views/Landing.vue'),
   },
+  {
+    path: '/import',
+    name: 'record-import',
+    component: () => import('@/views/RecordImport.vue'),
+  },
   // Phase 2 will register: { path: '/rules', name: 'rules', component: ... }
-  // Phase 3 will register: { path: '/import', name: 'import', component: ... }
-  //                        { path: '/records/:id/confirm', name: 'record-confirm', ... }
+  // Phase 3 will register: { path: '/records/:id/confirm', name: 'record-confirm', ... }
   // Phase 4 will register: { path: '/records/:id/results', name: 'record-results', ... }
 ];
 
