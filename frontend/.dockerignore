@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.vite
+.cache
+.idea
+.vscode
+.DS_Store
+Dockerfile
+.dockerignore
