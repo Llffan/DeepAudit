@@ -126,36 +126,36 @@ MVP 阶段额外约束：**单一当前版本规则集**（数据模型预留版
 
 ```mermaid
 graph TB
-    subgraph 接入层 [接入层 · Vue 3]
-        UI1[规则配置页]
-        UI2[PDF 导入页]
-        UI3[检查结果页]
+    subgraph access["接入层 · Vue 3"]
+        UI1["规则配置页"]
+        UI2["PDF 导入页"]
+        UI3["检查结果页"]
     end
 
-    subgraph 业务层 [业务层 · Spring Boot REST + SSE]
-        API1[规则管理 API]
-        API2[病案导入 API]
-        API3[检查执行 API]
-        API4[LLM 流式解释 SSE]
+    subgraph business["业务层 · Spring Boot REST + SSE"]
+        API1["规则管理 API"]
+        API2["病案导入 API"]
+        API3["检查执行 API"]
+        API4["LLM 流式解释 SSE"]
     end
 
-    subgraph 引擎层 [引擎层]
-        RE[规则引擎<br/>确定性求值]
-        LO[LLM 编排器<br/>langchain4j]
-        VS[向量检索服务<br/>pgvector]
+    subgraph engine["引擎层"]
+        RE["规则引擎<br/>确定性求值"]
+        LO["LLM 编排器<br/>langchain4j"]
+        VS["向量检索服务<br/>pgvector"]
     end
 
-    subgraph 存储层 [存储层 · PostgreSQL 16 + pgvector]
-        T1[(规则表)]
-        T2[(病案首页表)]
-        T3[(检查结果表)]
-        T4[(ICD 字典 + embedding)]
+    subgraph storage["存储层 · PostgreSQL 16 + pgvector"]
+        T1[("规则表")]
+        T2[("病案首页表")]
+        T3[("检查结果表")]
+        T4[("ICD 字典 + embedding")]
     end
 
     UI1 --> API1
     UI2 --> API2
     UI3 --> API3
-    UI3 -.SSE.-> API4
+    UI3 -. SSE .-> API4
     API1 --> RE
     API1 --> LO
     API2 --> LO
@@ -164,7 +164,7 @@ graph TB
     RE --> T1
     RE --> T2
     RE --> T3
-    LO -->|多模态/对话| EXT[阿里通义千问<br/>Qwen-VL-Max / Qwen-Max]
+    LO -->|"多模态/对话"| EXT["阿里通义千问<br/>Qwen-VL-Max / Qwen-Max"]
     LO --> VS
     VS --> T4
     API2 --> T2
@@ -822,11 +822,11 @@ Body: { "expression": {...}, "sampleRecord": {...} }
 
 ```mermaid
 flowchart LR
-    P1[① 上传页<br/>选择/拖拽 PDF] --> P2[② 抽取中<br/>进度提示]
-    P2 --> P3[③ 字段确认页<br/>左 PDF 预览 / 右字段表单]
-    P3 -->|确认| P4[④ 跳转检查执行]
-    P3 -->|修改| P3
-    P3 -->|放弃| P1
+    P1["① 上传页<br/>选择/拖拽 PDF"] --> P2["② 抽取中<br/>进度提示"]
+    P2 --> P3["③ 字段确认页<br/>左 PDF 预览 / 右字段表单"]
+    P3 -->|"确认"| P4["④ 跳转检查执行"]
+    P3 -->|"修改"| P3
+    P3 -->|"放弃"| P1
 ```
 
 业务背景：他院病案首页 PDF 导入本院系统。MVP 不接 HIS 直连，所有病案以 PDF 上传方式入库。
@@ -1007,12 +1007,12 @@ Body:
 
 ```mermaid
 flowchart LR
-    A[POST /api/medical-records/:id/check] --> B[加载该病案 main + extra]
-    B --> C[加载所有 enabled=true 规则]
-    C --> D[逐条 DSL 求值]
-    D --> E[命中? -> 写 check_result 快照]
-    E --> F[聚合结果返回]
-    F --> G[前端跳转 /records/:id/results]
+    A["POST /api/medical-records/:id/check"] --> B["加载该病案 main + extra"]
+    B --> C["加载所有 enabled=true 规则"]
+    C --> D["逐条 DSL 求值"]
+    D --> E["命中则写 check_result 快照"]
+    E --> F["聚合结果返回"]
+    F --> G["前端跳转 /records/:id/results"]
 ```
 
 ### 7.2 规则引擎执行细节
@@ -1223,13 +1223,13 @@ deepaudit:
 
 ```mermaid
 flowchart LR
-    A[用户上传 PDF] --> B[PDFBox<br/>逐页转图片]
-    B --> C[图片 + JSON Schema<br/>送 qwen-vl-max]
-    C --> D[结构化 JSON 输出]
-    D --> E{Schema 验证}
-    E -->|通过| F[入库 status=draft<br/>extraction_confidence]
-    E -->|失败| G[返回原始文本<br/>+ 提示用户手填]
-    F --> H[前端字段确认页]
+    A["用户上传 PDF"] --> B["PDFBox<br/>逐页转图片"]
+    B --> C["图片 + JSON Schema<br/>送 qwen-vl-max"]
+    C --> D["结构化 JSON 输出"]
+    D --> E{"Schema 验证"}
+    E -->|"通过"| F["入库 status=draft<br/>extraction_confidence"]
+    E -->|"失败"| G["返回原始文本<br/>+ 提示用户手填"]
+    F --> H["前端字段确认页"]
 ```
 
 #### 关键技术点
