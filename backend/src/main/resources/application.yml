@@ -1,0 +1,49 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: deepaudit-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/deepaudit}
+    username: ${SPRING_DATASOURCE_USERNAME:deepaudit}
+    password: ${SPRING_DATASOURCE_PASSWORD:deepaudit}
+    driver-class-name: org.postgresql.Driver
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: true   # surfaces JDBC SELECT 1 in actuator/health (Goal success criterion #3)
+
+deepaudit:
+  llm:
+    provider: dashscope
+    api-key: ${DASHSCOPE_API_KEY:}
+    chat-model: qwen-max
+    vision-model: qwen-vl-max
+    embedding-model: text-embedding-v3
+    timeout-seconds: 60
+    max-retries: 2
+
+dashscope:
+  data-improvement:
+    # C-regulatory-002: this app's policy. The console toggle MUST be OFF.
+    # If env DASHSCOPE_DATA_IMPROVEMENT=on, the startup guard logs WARN.
+    allowed: false
+    detected-state: ${DASHSCOPE_DATA_IMPROVEMENT:off}
+
+logging:
+  level:
+    root: INFO
+    com.deepaudit: DEBUG
