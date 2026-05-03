@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ====================================================================
+         Pinned versions (D-005 / C-env-001 / R6 defense): NO `latest`,
+         NO version-range. All third-party libs declared with explicit
+         versions OR managed via the spring-boot-starter-parent BOM.
+         ==================================================================== -->
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.deepaudit</groupId>
+    <artifactId>deepaudit-backend</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>deepaudit-backend</name>
+    <description>DeepAudit 病案首页质控 MVP backend</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!-- pinned third-party versions (NOT managed by Boot 3.2.5 BOM) -->
+        <spring-boot.version>3.2.5</spring-boot.version>
+        <postgresql.version>42.7.3</postgresql.version>
+        <langchain4j.version>0.36.2</langchain4j.version>
+    </properties>
+
+    <dependencies>
+        <!-- Spring Boot starters (versions managed by parent BOM = 3.2.5) -->
+        <!-- D-014: NO Spring Security starter on classpath (single-user demo, no auth). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!-- Phase 0 only needs JdbcTemplate-level access; Phase 1 will swap to
+             spring-boot-starter-data-jpa (per plan interfaces note). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+
+        <!-- PostgreSQL JDBC driver (pinned) -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${postgresql.version}</version>
+        </dependency>
+
+        <!-- langchain4j (declared; bean wiring deferred to Phase 1 per plan scope) -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-dashscope</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
+        <!-- test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
