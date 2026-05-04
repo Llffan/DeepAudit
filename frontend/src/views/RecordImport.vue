@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, type FormInstance, type UploadRequestOptions } from 'element-plus';
 import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick } from '@element-plus/icons-vue';
@@ -24,6 +24,21 @@ const mockFilling = ref(false);
 const extractionConfidence = ref<number | null>(null);
 const sourcePdfPath = ref<string | null>(null);
 const lastError = ref<string | null>(null);
+
+// Blob URL for the just-uploaded PDF — populated client-side from the
+// File the user dropped, so the <embed> preview works without a backend
+// roundtrip and even before the record is saved (T3.5).
+const pdfBlobUrl = ref<string | null>(null);
+function setPdfBlobFromFile(file: File | null) {
+  if (pdfBlobUrl.value) {
+    URL.revokeObjectURL(pdfBlobUrl.value);
+    pdfBlobUrl.value = null;
+  }
+  if (file) {
+    pdfBlobUrl.value = URL.createObjectURL(file);
+  }
+}
+onBeforeUnmount(() => setPdfBlobFromFile(null));
 
 // Auto-derive 住院天数 when both dates present — convenience only;
 // backend rule R002 still validates that the user-stored value matches.
@@ -133,6 +148,7 @@ async function uploadPdf(opts: UploadRequestOptions) {
     if (body.fields) Object.assign(form, body.fields);
     extractionConfidence.value = body.extractionConfidence ?? null;
     sourcePdfPath.value = body.sourcePdfPath ?? null;
+    setPdfBlobFromFile(file);
     if (body.degraded) {
       // 200 with degraded=true means the PDF saved but extraction failed —
       // operator drops into manual-fill mode (plan §8.7).
@@ -177,6 +193,7 @@ async function mockFill() {
     }
     extractionConfidence.value = body.extractionConfidence ?? null;
     sourcePdfPath.value = null;
+    setPdfBlobFromFile(null);
     formRef.value?.clearValidate();
     ElMessage.success('已生成测试数据，请按需修改后保存');
   } catch (err) {
@@ -228,6 +245,7 @@ function reset() {
   Object.assign(form, emptyRecord());
   extractionConfidence.value = null;
   sourcePdfPath.value = null;
+  setPdfBlobFromFile(null);
   lastError.value = null;
   formRef.value?.clearValidate();
   ElMessage.info('已清空表单');
@@ -235,7 +253,7 @@ function reset() {
 </script>
 
 <template>
-  <div class="page">
+  <div class="page" :class="{ 'has-preview': !!pdfBlobUrl }">
     <header class="topbar">
       <el-button :icon="ArrowLeft" link @click="router.push('/')">返回首页</el-button>
       <h1>病案首页录入</h1>
@@ -244,6 +262,19 @@ function reset() {
         <span class="progress-pct">{{ fillPercent }}%</span>
       </div>
     </header>
+
+    <div class="content-grid">
+      <aside v-if="pdfBlobUrl" class="pdf-preview">
+        <div class="pdf-preview-head">
+          <span>原文 PDF</span>
+          <el-button link type="primary" size="small" @click="setPdfBlobFromFile(null)">
+            收起预览
+          </el-button>
+        </div>
+        <embed :src="pdfBlobUrl" type="application/pdf" />
+      </aside>
+
+      <div class="form-pane">
 
     <section class="mode-switch">
       <el-segmented
@@ -588,6 +619,8 @@ function reset() {
         </el-col>
       </el-row>
     </el-form>
+      </div>
+    </div>
 
     <footer class="actions">
       <span v-if="lastError" class="last-error" :title="lastError">
@@ -608,6 +641,67 @@ function reset() {
   max-width: 1100px;
   margin: 2rem auto 6rem;
   padding: 0 1.5rem;
+  transition: max-width 200ms ease;
+}
+/* When the PDF preview is open we need elbow room for two columns. */
+.page.has-preview {
+  max-width: 1600px;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+.has-preview .content-grid {
+  grid-template-columns: minmax(360px, 7fr) minmax(0, 9fr);
+}
+
+.pdf-preview {
+  position: sticky;
+  top: 1rem;
+  height: calc(100vh - 6rem);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e2e6ea;
+  border-radius: 8px;
+  background: #f5f6f8;
+  overflow: hidden;
+}
+.pdf-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e2e6ea;
+  font-size: 0.85rem;
+  color: #444;
+  font-weight: 500;
+}
+.pdf-preview embed {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #525659;
+}
+@media (max-width: 1280px) {
+  /* Below ~1280px, stacking the preview above the form preserves
+     readability instead of squeezing both into unusable widths. */
+  .has-preview .content-grid {
+    grid-template-columns: 1fr;
+  }
+  .pdf-preview {
+    position: relative;
+    top: 0;
+    height: 60vh;
+  }
+}
+
+.form-pane {
+  display: flex;
+  flex-direction: column;
 }
 
 .topbar {
