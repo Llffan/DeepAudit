@@ -1,8 +1,10 @@
 package com.deepaudit.api.controller;
 
 import com.deepaudit.api.dto.MedicalRecordImportResponse;
+import com.deepaudit.api.dto.MedicalRecordListItemDto;
 import com.deepaudit.api.dto.MedicalRecordMainDto;
 import com.deepaudit.api.dto.MedicalRecordSaveRequest;
+import com.deepaudit.api.dto.PageResponse;
 import com.deepaudit.api.exception.NotFoundException;
 import com.deepaudit.persistence.entity.MedicalRecordMain;
 import com.deepaudit.persistence.repository.MedicalRecordMainRepository;
@@ -13,6 +15,9 @@ import com.deepaudit.service.MedicalRecordMockFiller;
 import com.deepaudit.service.MedicalRecordSaveService;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +42,7 @@ import java.nio.file.Path;
  * <pre>
  *   POST   /api/medical-records/import   multipart  -> render + extract, no DB
  *   POST   /api/medical-records          JSON       -> insert (or update if id)
+ *   GET    /api/medical-records          query      -> paged list
  *   GET    /api/medical-records/{id}                -> read one record
  *   GET    /api/medical-records/{id}/pdf            -> stream the source PDF for embed preview
  * </pre>
@@ -101,6 +107,25 @@ public class MedicalRecordController {
         return ResponseEntity.ok(body);
     }
 
+    @GetMapping
+    public PageResponse<MedicalRecordListItemDto> list(
+        @RequestParam(value = "status", required = false) String status,
+        @RequestParam(value = "keyword", required = false) String keyword,
+        @RequestParam(value = "page", defaultValue = "0") int page,
+        @RequestParam(value = "size", defaultValue = "20") int size
+    ) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        String s = (status == null || status.isBlank()) ? null : status.trim();
+        String k = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+
+        Page<MedicalRecordMain> rows = mainRepo.search(
+            s, k,
+            PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id"))
+        );
+        return PageResponse.of(rows.map(MedicalRecordController::toListItem));
+    }
+
     @GetMapping("/{id}")
     public MedicalRecordMainDto get(@PathVariable Long id) {
         return mainRepo.findById(id)
@@ -123,6 +148,26 @@ public class MedicalRecordController {
             .contentType(MediaType.APPLICATION_PDF)
             .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + absolute.getFileName() + "\"")
             .body(new FileSystemResource(absolute));
+    }
+
+    private static MedicalRecordListItemDto toListItem(MedicalRecordMain m) {
+        boolean hasPdf = m.getSourcePdfPath() != null && !m.getSourcePdfPath().isBlank();
+        return new MedicalRecordListItemDto(
+            m.getId(),
+            m.getRecordNo(),
+            m.getName(),
+            m.getGender(),
+            m.getAge(),
+            m.getAdmissionDate(),
+            m.getDischargeDate(),
+            m.getLengthOfStay(),
+            m.getMainDiagnosisName(),
+            m.getStatus(),
+            m.getExtractionConfidence(),
+            hasPdf,
+            m.getCreatedAt(),
+            m.getUpdatedAt()
+        );
     }
 
     private static MedicalRecordMainDto toDto(MedicalRecordMain m) {
