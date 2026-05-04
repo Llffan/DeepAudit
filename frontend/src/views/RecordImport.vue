@@ -251,19 +251,18 @@ async function save(target: 'draft' | 'confirmed') {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
     const saved = (await res.json()) as { id?: number; status?: string };
-    ElMessage.success(target === 'draft' ? '已保存为草稿' : '已确认，可进入规则检查');
+    ElMessage.success(target === 'draft' ? '已保存为草稿' : '已确认');
     if (saved.id) {
-      const isFirstSave = recordId.value === null;
       recordId.value = saved.id;
       recordStatus.value = (saved.status as typeof recordStatus.value) ?? target;
-      // Sync URL so refresh stays on the same record and the back-button
-      // history matches what the user sees.
       if (route.query.id !== String(saved.id)) {
         router.replace({ path: '/import', query: { id: String(saved.id) } });
       }
-      if (isFirstSave) {
-        // Phase 4 will register /records/:id/results.
-        console.info('Saved record id:', saved.id);
+      // T4.1：「确认提交」语义即"确认 + 立即跑规则检查"。保存成功后顺势
+      // POST /check 把状态推进到 checked，然后直接跳结果页。失败时停留
+      // 在录入页（已是 confirmed），用户可手动重试。
+      if (target === 'confirmed') {
+        await runCheckAndGoto(saved.id);
       }
     }
   } catch (err) {
@@ -271,6 +270,21 @@ async function save(target: 'draft' | 'confirmed') {
     ElMessage.error(`保存失败：${lastError.value}`);
   } finally {
     submitting.value = false;
+  }
+}
+
+async function runCheckAndGoto(id: number) {
+  try {
+    const res = await fetch(`/api/medical-records/${id}/check`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    const body = (await res.json()) as { summary?: { totalHits?: number } };
+    const hits = body.summary?.totalHits ?? 0;
+    ElMessage.success(hits === 0 ? '检查完成，全部通过' : `检查完成，命中 ${hits} 条`);
+    recordStatus.value = 'checked';
+    void router.push({ path: '/results', query: { recordId: String(id) } });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    ElMessage.warning(`已保存但检查失败：${msg}。请到结果页手动重试。`);
   }
 }
 

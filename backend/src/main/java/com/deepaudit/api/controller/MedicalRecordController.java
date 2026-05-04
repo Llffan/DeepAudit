@@ -1,5 +1,6 @@
 package com.deepaudit.api.controller;
 
+import com.deepaudit.api.dto.CheckSummaryResponse;
 import com.deepaudit.api.dto.MedicalRecordImportResponse;
 import com.deepaudit.api.dto.MedicalRecordListItemDto;
 import com.deepaudit.api.dto.MedicalRecordMainDto;
@@ -8,6 +9,7 @@ import com.deepaudit.api.dto.PageResponse;
 import com.deepaudit.api.exception.NotFoundException;
 import com.deepaudit.persistence.entity.MedicalRecordMain;
 import com.deepaudit.persistence.repository.MedicalRecordMainRepository;
+import com.deepaudit.service.CheckService;
 import com.deepaudit.service.ExtractionResult;
 import com.deepaudit.service.FileStorageService;
 import com.deepaudit.service.MedicalRecordImportService;
@@ -42,6 +44,7 @@ import java.nio.file.Path;
  * <pre>
  *   POST   /api/medical-records/import   multipart  -> render + extract, no DB
  *   POST   /api/medical-records          JSON       -> insert (or update if id)
+ *   POST   /api/medical-records/{id}/check          -> run rule engine, persist hits (T4.1)
  *   GET    /api/medical-records          query      -> paged list
  *   GET    /api/medical-records/{id}                -> read one record
  *   GET    /api/medical-records/{id}/pdf            -> stream the source PDF for embed preview
@@ -56,17 +59,20 @@ public class MedicalRecordController {
     private final MedicalRecordMockFiller mockFiller;
     private final MedicalRecordMainRepository mainRepo;
     private final FileStorageService storage;
+    private final CheckService checkService;
 
     public MedicalRecordController(MedicalRecordImportService importService,
                                    MedicalRecordSaveService saveService,
                                    MedicalRecordMockFiller mockFiller,
                                    MedicalRecordMainRepository mainRepo,
-                                   FileStorageService storage) {
+                                   FileStorageService storage,
+                                   CheckService checkService) {
         this.importService = importService;
         this.saveService = saveService;
         this.mockFiller = mockFiller;
         this.mainRepo = mainRepo;
         this.storage = storage;
+        this.checkService = checkService;
     }
 
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -124,6 +130,11 @@ public class MedicalRecordController {
             PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id"))
         );
         return PageResponse.of(rows.map(MedicalRecordController::toListItem));
+    }
+
+    @PostMapping("/{id}/check")
+    public CheckSummaryResponse runCheck(@PathVariable Long id) {
+        return checkService.check(id);
     }
 
     @GetMapping("/{id}")
