@@ -8,7 +8,6 @@ spring:
     name: deepaudit-backend
   config:
     import:
-      - optional:application-docker.yml
       - optional:application-prod.yml
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/deepaudit}
