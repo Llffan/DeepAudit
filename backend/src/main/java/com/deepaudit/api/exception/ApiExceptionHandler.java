@@ -41,4 +41,11 @@ public class ApiExceptionHandler {
             .status(HttpStatus.CONFLICT)
             .body(new ErrorBody("conflict", e.getMessage(), List.of()));
     }
+
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<ErrorBody> handleUnavailable(ServiceUnavailableException e) {
+        return ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .body(new ErrorBody("service_unavailable", e.getMessage(), List.of()));
+    }
 }

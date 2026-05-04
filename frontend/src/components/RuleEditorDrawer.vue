@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import { MagicStick } from '@element-plus/icons-vue';
 
 interface QcRuleDto {
   id: number;
@@ -31,6 +32,9 @@ const emit = defineEmits<{
 const formRef = ref<FormInstance>();
 const saving = ref(false);
 const dslErrors = ref<string[]>([]);
+const nlInput = ref('');
+const aiLoading = ref(false);
+const aiHint = ref('');
 
 const DEFAULT_DSL = JSON.stringify(
   { op: 'notNull', field: 'recordNo' },
@@ -62,6 +66,8 @@ watch(
   ([open, rule]) => {
     if (!open) return;
     dslErrors.value = [];
+    nlInput.value = '';
+    aiHint.value = '';
     if (rule) {
       form.code = rule.code;
       form.name = rule.name;
@@ -157,6 +163,54 @@ async function onSave() {
 function onCancel() {
   emit('update:modelValue', false);
 }
+
+async function generateDsl() {
+  const input = nlInput.value.trim();
+  if (!input) {
+    ElMessage.warning('请先输入自然语言描述');
+    return;
+  }
+  aiLoading.value = true;
+  aiHint.value = '';
+  dslErrors.value = [];
+  try {
+    const res = await fetch('/api/rules/from-natural-language', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ naturalLanguage: input }),
+    });
+    if (res.status === 503) {
+      const body = await res.json();
+      ElMessage.error(body.message ?? 'LLM 未配置');
+      return;
+    }
+    if (!res.ok) {
+      ElMessage.error(`AI 调用失败：HTTP ${res.status}`);
+      return;
+    }
+    const body = await res.json();
+    if (body.dsl) {
+      dslText.value = JSON.stringify(body.dsl, null, 2);
+      if (body.validationErrors && body.validationErrors.length > 0) {
+        dslErrors.value = body.validationErrors;
+        aiHint.value = `生成成功但有 ${body.validationErrors.length} 项校验错误，请人工修正`;
+      } else {
+        aiHint.value = '生成成功，请人工复核 DSL 后保存';
+      }
+    } else if (body.rawOutput) {
+      dslText.value = body.rawOutput;
+      dslErrors.value = body.validationErrors ?? ['LLM 输出无法解析为 JSON'];
+      aiHint.value = '原始输出已填入下方编辑器，请手动修正';
+    } else {
+      dslErrors.value = body.validationErrors ?? ['AI 未返回有效输出'];
+      aiHint.value = '生成失败';
+    }
+  } catch (err) {
+    ElMessage.error('网络错误：' + (err instanceof Error ? err.message : String(err)));
+  } finally {
+    aiLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -233,6 +287,28 @@ function onCancel() {
         <el-switch v-model="form.enabled" />
       </el-form-item>
 
+      <el-form-item label="AI 写规则">
+        <div class="ai-write">
+          <el-input
+            v-model="nlInput"
+            type="textarea"
+            :rows="2"
+            placeholder="用自然语言描述这条规则，例如：年龄超过 120 岁提示用户确认"
+          />
+          <div class="ai-actions">
+            <el-button
+              type="primary"
+              :loading="aiLoading"
+              :icon="MagicStick"
+              @click="generateDsl"
+            >
+              生成 DSL
+            </el-button>
+            <span v-if="aiHint" class="ai-hint">{{ aiHint }}</span>
+          </div>
+        </div>
+      </el-form-item>
+
       <el-form-item label="DSL 表达式">
         <el-input
           v-model="dslText"
@@ -304,5 +380,21 @@ function onCancel() {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.ai-write {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ai-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.ai-hint {
+  font-size: 0.85rem;
+  color: #1677ff;
 }
 </style>

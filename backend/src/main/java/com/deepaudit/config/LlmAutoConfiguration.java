@@ -1,14 +1,17 @@
 package com.deepaudit.config;
 
+import com.deepaudit.service.RuleDslGenerator;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiEmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
+import dev.langchain4j.service.AiServices;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -69,6 +72,21 @@ public class LlmAutoConfiguration {
         return GoogleAiEmbeddingModel.builder()
             .apiKey(props.getApiKey())
             .modelName(props.getEmbeddingModel())
+            .build();
+    }
+
+    /**
+     * langchain4j-generated implementation of {@link RuleDslGenerator}
+     * (T2.5). Conditional on a real ChatLanguageModel being present, so
+     * a missing api-key drops the chain cleanly: no chat bean -> no
+     * generator bean -> RuleGeneratorService receives an empty
+     * ObjectProvider and tells the UI the LLM is unavailable.
+     */
+    @Bean
+    @ConditionalOnBean(ChatLanguageModel.class)
+    public RuleDslGenerator ruleDslGenerator(ChatLanguageModel chatModel) {
+        return AiServices.builder(RuleDslGenerator.class)
+            .chatLanguageModel(chatModel)
             .build();
     }
 

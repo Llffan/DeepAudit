@@ -2,6 +2,8 @@ package com.deepaudit.api.controller;
 
 import com.deepaudit.api.dto.DryRunRequest;
 import com.deepaudit.api.dto.DryRunResponse;
+import com.deepaudit.api.dto.NlRuleRequest;
+import com.deepaudit.api.dto.NlRuleResponse;
 import com.deepaudit.api.dto.QcRuleDto;
 import com.deepaudit.api.dto.RuleCreateRequest;
 import com.deepaudit.api.dto.RuleEnabledPatch;
@@ -12,6 +14,7 @@ import com.deepaudit.engine.RuleEvaluator;
 import com.deepaudit.persistence.entity.MedicalRecordMain;
 import com.deepaudit.persistence.entity.QcRule;
 import com.deepaudit.persistence.repository.QcRuleRepository;
+import com.deepaudit.service.RuleGeneratorService;
 import com.deepaudit.service.RuleService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -44,17 +47,20 @@ public class RuleController {
     private static final Logger log = LoggerFactory.getLogger(RuleController.class);
 
     private final RuleService ruleService;
+    private final RuleGeneratorService ruleGeneratorService;
     private final QcRuleRepository ruleRepo;
     private final RuleEvaluator evaluator;
     private final RuleDslValidator validator;
     private final ObjectMapper mapper;
 
     public RuleController(RuleService ruleService,
+                          RuleGeneratorService ruleGeneratorService,
                           QcRuleRepository ruleRepo,
                           RuleEvaluator evaluator,
                           RuleDslValidator validator,
                           ObjectMapper mapper) {
         this.ruleService = ruleService;
+        this.ruleGeneratorService = ruleGeneratorService;
         this.ruleRepo = ruleRepo;
         this.evaluator = evaluator;
         this.validator = validator;
@@ -91,6 +97,11 @@ public class RuleController {
     @PatchMapping("/{id}/enabled")
     public QcRuleDto patchEnabled(@PathVariable Long id, @RequestBody RuleEnabledPatch req) {
         return toDto(ruleService.setEnabled(id, req.enabled()));
+    }
+
+    @PostMapping("/from-natural-language")
+    public NlRuleResponse fromNaturalLanguage(@RequestBody NlRuleRequest req) {
+        return ruleGeneratorService.generate(req.naturalLanguage());
     }
 
     @PostMapping("/dry-run")
