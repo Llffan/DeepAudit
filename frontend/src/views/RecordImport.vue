@@ -67,8 +67,50 @@ const rules = {
   recordNo: [{ required: true, message: '病案号必填', trigger: 'blur' }],
 };
 
+// Pre-flight + post-error message mapping. Pre-flight short-circuits the
+// upload when we can detect the problem from the File object alone (saves
+// a wasted network round-trip + nginx 413 raw HTML); the response mapper
+// handles whatever the server actually rejected.
+const MAX_PDF_BYTES = 10 * 1024 * 1024;
+
+function preflightPdf(file: File): string | null {
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    return '仅支持 PDF 文件（.pdf 后缀）';
+  }
+  if (file.size > MAX_PDF_BYTES) {
+    return `文件超过 10 MB 上限（实际 ${(file.size / 1024 / 1024).toFixed(1)} MB）`;
+  }
+  return null;
+}
+
+async function describeHttpError(res: Response): Promise<string> {
+  // Friendly Chinese message for the three status codes the import endpoint
+  // returns for known reasons. Backend ApiExceptionHandler always sends
+  // { code, message, errors } so prefer the server message when present.
+  let serverMsg: string | null = null;
+  try {
+    const body = await res.json();
+    if (body?.message) serverMsg = body.message;
+  } catch {
+    // body might be HTML (nginx 413) or empty; fall through to status-based mapping
+  }
+  if (serverMsg) return serverMsg;
+  if (res.status === 415) return '仅支持 PDF 文件';
+  if (res.status === 413) return '文件超过 10 MB 上限';
+  if (res.status === 400) return '上传被拒绝，请检查文件是否完整或不为空';
+  if (res.status === 503) return 'LLM 暂不可用，请稍后再试或联系管理员检查 API Key';
+  return `HTTP ${res.status} ${res.statusText}`;
+}
+
 async function uploadPdf(opts: UploadRequestOptions) {
   const file = opts.file as File;
+  const why = preflightPdf(file);
+  if (why) {
+    lastError.value = why;
+    ElMessage.error(why);
+    return;
+  }
+
   extractingPdf.value = true;
   lastError.value = null;
   try {
@@ -78,16 +120,28 @@ async function uploadPdf(opts: UploadRequestOptions) {
       method: 'POST',
       body: fd,
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      throw new Error(await describeHttpError(res));
+    }
     const body = (await res.json()) as {
       fields?: Partial<MedicalRecord>;
       extractionConfidence?: number;
       sourcePdfPath?: string;
+      degraded?: boolean;
+      degradedReason?: string;
     };
     if (body.fields) Object.assign(form, body.fields);
     extractionConfidence.value = body.extractionConfidence ?? null;
     sourcePdfPath.value = body.sourcePdfPath ?? null;
-    ElMessage.success('PDF 抽取完成，请核对下方字段');
+    if (body.degraded) {
+      // 200 with degraded=true means the PDF saved but extraction failed —
+      // operator drops into manual-fill mode (plan §8.7).
+      ElMessage.warning(
+        `LLM 抽取失败：${body.degradedReason ?? '未知原因'}。已落盘 PDF，请手动补全字段。`,
+      );
+    } else {
+      ElMessage.success('PDF 抽取完成，请核对下方字段');
+    }
   } catch (err) {
     lastError.value = err instanceof Error ? err.message : String(err);
     ElMessage.error(`抽取失败：${lastError.value}`);
@@ -229,10 +283,21 @@ function reset() {
         </div>
         <template #tip>
           <p class="upload-tip">
-            单个 PDF 文件 · 调用多模态 LLM（qwen-vl-max）自动抽取字段并填入下方表单
+            单个 PDF · ≤ 10 MB · 调用 Gemini 2.5 Flash 多模态自动抽取 30 字段
           </p>
         </template>
       </el-upload>
+
+      <div class="source-hospital-row">
+        <span class="source-label">来源医院</span>
+        <el-input
+          v-model="form.sourceHospital"
+          placeholder="可选，例如 XX 第二人民医院"
+          clearable
+          :disabled="extractingPdf"
+          class="source-input"
+        />
+      </div>
 
       <div v-if="confidencePercent != null" class="confidence-row">
         <span class="confidence-label">抽取置信度</span>
@@ -624,6 +689,26 @@ function reset() {
   color: #999;
   margin-top: 6px;
   text-align: left;
+}
+
+.source-hospital-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: #fafbfc;
+  border-radius: 6px;
+  border: 1px solid #eee;
+}
+.source-label {
+  font-size: 0.85rem;
+  color: #666;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+.source-input {
+  flex: 1;
 }
 
 .confidence-row {

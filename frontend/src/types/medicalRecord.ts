@@ -77,6 +77,7 @@ export function emptyRecord(): MedicalRecord {
     drugCost: null,
     operationCost: null,
     medicalServiceCost: null,
+    sourceHospital: null,
   };
 }
 
