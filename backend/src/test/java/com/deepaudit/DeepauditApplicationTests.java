@@ -1,7 +1,9 @@
 package com.deepaudit;
 
+import com.deepaudit.persistence.repository.QcRuleRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 
 /**
  * Phase 0 smoke test: verifies the Spring context loads without a live
@@ -12,6 +14,9 @@ import org.springframework.boot.test.context.SpringBootTest;
         "spring.autoconfigure.exclude=" +
         "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration")
 class DeepauditApplicationTests {
+
+    @MockBean
+    private QcRuleRepository qcRuleRepository;
 
     @Test
     void contextLoads() {
