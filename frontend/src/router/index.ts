@@ -28,6 +28,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/RuleSandbox.vue'),
       },
       {
+        path: 'records',
+        name: 'record-list',
+        component: () => import('@/views/RecordList.vue'),
+      },
+      {
         path: 'import',
         name: 'record-import',
         component: () => import('@/views/RecordImport.vue'),
