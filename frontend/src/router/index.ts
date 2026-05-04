@@ -1,5 +1,12 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 
+// Two top-level entries share the path prefix '/':
+//   1. Landing (smoke-test splash with backend health probe) at '/'.
+//   2. AppLayout (sidebar + header) wrapping the 3 core workflow pages.
+//
+// vue-router resolves '/' to the first match (Landing) and longer paths
+// like '/rules' / '/import' / '/results' to children of the AppLayout
+// route. Both definitions therefore coexist without ambiguity.
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
@@ -7,13 +14,28 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Landing.vue'),
   },
   {
-    path: '/import',
-    name: 'record-import',
-    component: () => import('@/views/RecordImport.vue'),
+    path: '/',
+    component: () => import('@/layouts/AppLayout.vue'),
+    children: [
+      {
+        path: 'rules',
+        name: 'rules',
+        component: () => import('@/views/RuleConfig.vue'),
+      },
+      {
+        path: 'import',
+        name: 'record-import',
+        component: () => import('@/views/RecordImport.vue'),
+      },
+      {
+        path: 'results',
+        name: 'check-results',
+        component: () => import('@/views/CheckResult.vue'),
+      },
+      // Phase 3 will register: { path: 'records/:id/confirm', ... }
+      // Phase 4 will register: { path: 'records/:id/results', ... }
+    ],
   },
-  // Phase 2 will register: { path: '/rules', name: 'rules', component: ... }
-  // Phase 3 will register: { path: '/records/:id/confirm', name: 'record-confirm', ... }
-  // Phase 4 will register: { path: '/records/:id/results', name: 'record-results', ... }
 ];
 
 export default createRouter({
