@@ -1,13 +1,14 @@
 package com.deepaudit.config;
 
 import com.deepaudit.service.RuleDslGenerator;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiEmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
-import dev.langchain4j.service.AiServices;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationRunner;
@@ -16,6 +17,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.util.StreamUtils;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * Wires the three langchain4j model beans against Google AI Gemini
@@ -42,6 +50,9 @@ public class LlmAutoConfiguration {
 
     private static final String API_KEY_PRESENT =
         "'${deepaudit.llm.api-key:}' != ''";
+
+    private static final String RULE_DSL_PROMPT_RESOURCE =
+        "prompts/rule_dsl_generator.system.txt";
 
     @Bean
     @ConditionalOnExpression(API_KEY_PRESENT)
@@ -76,18 +87,39 @@ public class LlmAutoConfiguration {
     }
 
     /**
-     * langchain4j-generated implementation of {@link RuleDslGenerator}
-     * (T2.5). Conditional on a real ChatLanguageModel being present, so
-     * a missing api-key drops the chain cleanly: no chat bean -> no
-     * generator bean -> RuleGeneratorService receives an empty
-     * ObjectProvider and tells the UI the LLM is unavailable.
+     * Plain-text NL->DSL generator (T2.5).
+     *
+     * <p>We deliberately bypass {@code AiServices} + {@code @SystemMessage}
+     * here. That path renders the prompt through langchain4j's
+     * {@code PromptTemplate}, which treats every {@code {{name}}} in the
+     * prompt body as a required variable -- our example
+     * {@code errorMessageTemplate} strings legitimately contain
+     * {@code {{age}}}, {@code {{operationDate}}} etc. (matching the
+     * production rule-message format used by R001/R002 in V1__init_schema.sql),
+     * and that triggered "Value for the variable 'X' is missing" at runtime.
+     *
+     * <p>Reading the system prompt as a flat string and constructing
+     * {@link SystemMessage} directly skips the template engine entirely,
+     * so the placeholder syntax in the prompt is preserved verbatim and
+     * the model can use it in its own example output.
      */
     @Bean
     @ConditionalOnBean(ChatLanguageModel.class)
-    public RuleDslGenerator ruleDslGenerator(ChatLanguageModel chatModel) {
-        return AiServices.builder(RuleDslGenerator.class)
-            .chatLanguageModel(chatModel)
-            .build();
+    public RuleDslGenerator ruleDslGenerator(ChatLanguageModel chatModel) throws IOException {
+        String systemPrompt = loadResourceText(RULE_DSL_PROMPT_RESOURCE);
+        log.info("Loaded NL->DSL system prompt ({} chars) from {}",
+            systemPrompt.length(), RULE_DSL_PROMPT_RESOURCE);
+
+        return naturalLanguage -> chatModel.generate(List.of(
+            SystemMessage.from(systemPrompt),
+            UserMessage.from(naturalLanguage)
+        )).content().text();
+    }
+
+    private static String loadResourceText(String path) throws IOException {
+        try (InputStream in = new ClassPathResource(path).getInputStream()) {
+            return StreamUtils.copyToString(in, StandardCharsets.UTF_8);
+        }
     }
 
     /**
