@@ -1,5 +1,7 @@
 package com.deepaudit;
 
+import com.deepaudit.persistence.repository.MedicalRecordExtraRepository;
+import com.deepaudit.persistence.repository.MedicalRecordMainRepository;
 import com.deepaudit.persistence.repository.QcRuleRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +19,12 @@ class DeepauditApplicationTests {
 
     @MockBean
     private QcRuleRepository qcRuleRepository;
+
+    @MockBean
+    private MedicalRecordMainRepository medicalRecordMainRepository;
+
+    @MockBean
+    private MedicalRecordExtraRepository medicalRecordExtraRepository;
 
     @Test
     void contextLoads() {

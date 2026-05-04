@@ -2,7 +2,7 @@
 import { ref, reactive, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, type FormInstance, type UploadRequestOptions } from 'element-plus';
-import { UploadFilled, ArrowLeft, Refresh, Check } from '@element-plus/icons-vue';
+import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick } from '@element-plus/icons-vue';
 import {
   emptyRecord,
   GENDER_OPTIONS,
@@ -20,6 +20,7 @@ const form = reactive<MedicalRecord>(emptyRecord());
 const formRef = ref<FormInstance>();
 const submitting = ref(false);
 const extractingPdf = ref(false);
+const mockFilling = ref(false);
 const extractionConfidence = ref<number | null>(null);
 const sourcePdfPath = ref<string | null>(null);
 const lastError = ref<string | null>(null);
@@ -95,6 +96,43 @@ async function uploadPdf(opts: UploadRequestOptions) {
   }
 }
 
+async function mockFill() {
+  mockFilling.value = true;
+  lastError.value = null;
+  try {
+    const res = await fetch('/api/medical-records/mock-fill', { method: 'POST' });
+    if (!res.ok) {
+      let detail = `${res.status} ${res.statusText}`;
+      try {
+        const body = await res.json();
+        if (body?.message) detail = body.message;
+      } catch {
+        // ignore JSON parse error; fall back to status line
+      }
+      throw new Error(detail);
+    }
+    const body = (await res.json()) as {
+      fields?: Partial<MedicalRecord>;
+      extractionConfidence?: number;
+    };
+    if (body.fields) {
+      // Wipe stale form first so a previous PDF's residual values don't
+      // mix into the new mock record.
+      Object.assign(form, emptyRecord());
+      Object.assign(form, body.fields);
+    }
+    extractionConfidence.value = body.extractionConfidence ?? null;
+    sourcePdfPath.value = null;
+    formRef.value?.clearValidate();
+    ElMessage.success('已生成测试数据，请按需修改后保存');
+  } catch (err) {
+    lastError.value = err instanceof Error ? err.message : String(err);
+    ElMessage.error(`生成失败：${lastError.value}`);
+  } finally {
+    mockFilling.value = false;
+  }
+}
+
 async function save(target: 'draft' | 'confirmed') {
   if (!formRef.value) return;
   try {
@@ -161,6 +199,18 @@ function reset() {
           { label: '手动录入', value: 'manual' },
         ]"
       />
+      <el-button
+        :icon="MagicStick"
+        :loading="mockFilling"
+        :disabled="extractingPdf || submitting"
+        plain
+        type="primary"
+        size="default"
+        class="mock-btn"
+        @click="mockFill"
+      >
+        🎲 LLM 生成测试数据
+      </el-button>
     </section>
 
     <section v-if="mode === 'pdf'" class="upload-zone">
@@ -527,7 +577,14 @@ function reset() {
 }
 
 .mode-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin-bottom: 1.25rem;
+}
+.mock-btn {
+  flex-shrink: 0;
 }
 
 .upload-zone {

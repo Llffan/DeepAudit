@@ -9,6 +9,14 @@ spring:
   config:
     import:
       - optional:application-prod.yml
+  servlet:
+    # T3.1 / plan §6.6: PDF upload cap is 10 MB at the API contract; allow
+    # 12 MB at the servlet boundary to leave room for the multipart envelope
+    # (boundary headers + form fields). Anything larger is rejected before
+    # PDFBox or Gemini sees it.
+    multipart:
+      max-file-size: 12MB
+      max-request-size: 12MB
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/deepaudit}
     username: ${SPRING_DATASOURCE_USERNAME:deepaudit}
@@ -55,6 +63,11 @@ management:
       enabled: true # surfaces JDBC SELECT 1 in actuator/health (Goal success criterion #3)
 
 deepaudit:
+  # T3.3: where uploaded PDFs land. Local dev defaults to ./uploads
+  # relative to the JVM CWD; docker-compose overrides to /app/uploads
+  # which is mounted on a named volume so PDFs survive container
+  # restarts (DEEPAUDIT_UPLOAD_DIR env var binds here).
+  upload-dir: ${DEEPAUDIT_UPLOAD_DIR:./uploads}
   llm:
     # Gemini 2.5 Flash (T2.4): multimodal-native -- chat, NL->DSL, PDF page
     # extraction, and violation explanation all share the same model.

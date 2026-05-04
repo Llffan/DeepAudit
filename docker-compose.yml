@@ -36,7 +36,14 @@ services:
       SPRING_DATASOURCE_USERNAME: deepaudit
       SPRING_DATASOURCE_PASSWORD: deepaudit
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      DEEPAUDIT_UPLOAD_DIR: /app/uploads
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+    volumes:
+      # T3.3: keep imported PDFs across container restarts so the
+      # confirm-page <embed src="…/pdf"> preview survives a reboot. The
+      # named volume is gitignored at the host (.gitignore) and excluded
+      # from the image (uploads are PHI-bearing).
+      - backend_uploads:/app/uploads
     expose:
       - "8080"
     healthcheck:
@@ -98,3 +105,5 @@ services:
 volumes:
   db_data:
     name: deepaudit_db_data
+  backend_uploads:
+    name: deepaudit_backend_uploads

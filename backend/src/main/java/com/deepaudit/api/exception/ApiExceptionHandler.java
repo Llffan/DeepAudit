@@ -1,9 +1,12 @@
 package com.deepaudit.api.exception;
 
+import com.deepaudit.service.MedicalRecordImportService.PayloadTooLargeException;
+import com.deepaudit.service.MedicalRecordImportService.UnsupportedFileTypeException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.List;
 
@@ -47,5 +50,21 @@ public class ApiExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.SERVICE_UNAVAILABLE)
             .body(new ErrorBody("service_unavailable", e.getMessage(), List.of()));
+    }
+
+    @ExceptionHandler(UnsupportedFileTypeException.class)
+    public ResponseEntity<ErrorBody> handleUnsupportedType(UnsupportedFileTypeException e) {
+        return ResponseEntity
+            .status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+            .body(new ErrorBody("unsupported_media_type", e.getMessage(), List.of()));
+    }
+
+    @ExceptionHandler({PayloadTooLargeException.class, MaxUploadSizeExceededException.class})
+    public ResponseEntity<ErrorBody> handlePayloadTooLarge(RuntimeException e) {
+        // MaxUploadSizeExceededException carries the configured limit in
+        // its default message, which is fine to surface verbatim.
+        return ResponseEntity
+            .status(HttpStatus.PAYLOAD_TOO_LARGE)
+            .body(new ErrorBody("payload_too_large", e.getMessage(), List.of()));
     }
 }
