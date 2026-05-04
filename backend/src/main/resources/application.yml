@@ -11,6 +11,17 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:deepaudit}
     password: ${SPRING_DATASOURCE_PASSWORD:deepaudit}
     driver-class-name: org.postgresql.Driver
+  jpa:
+    # Flyway owns DDL. `validate` makes Hibernate compare entity mappings
+    # against the live schema at startup -- catches entity/DDL drift early.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
   flyway:
     # `enabled: true` and `locations: classpath:db/migration` are Spring
     # Boot defaults; migrations live at
