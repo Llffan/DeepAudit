@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, reactive, computed, watch, onBeforeUnmount, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, type FormInstance, type UploadRequestOptions } from 'element-plus';
-import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick } from '@element-plus/icons-vue';
+import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick, Files } from '@element-plus/icons-vue';
 import {
   emptyRecord,
   GENDER_OPTIONS,
@@ -15,6 +15,7 @@ import {
 } from '@/types/medicalRecord';
 
 const router = useRouter();
+const route = useRoute();
 const mode = ref<'pdf' | 'manual'>('pdf');
 const form = reactive<MedicalRecord>(emptyRecord());
 const formRef = ref<FormInstance>();
@@ -24,6 +25,27 @@ const mockFilling = ref(false);
 const extractionConfidence = ref<number | null>(null);
 const sourcePdfPath = ref<string | null>(null);
 const lastError = ref<string | null>(null);
+
+// Edit-mode state. When ?id=X is present we load the existing record into
+// the form; subsequent saves go through the same POST endpoint with id set,
+// which the backend treats as an update (T3.3 MedicalRecordSaveService).
+const recordId = ref<number | null>(null);
+const recordStatus = ref<'draft' | 'confirmed' | 'checked' | null>(null);
+const recordCreatedAt = ref<string | null>(null);
+const loadingRecord = ref(false);
+
+const isEditMode = computed(() => recordId.value !== null);
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: '草稿',
+  confirmed: '已确认',
+  checked: '已检查',
+};
+const STATUS_TAG_TYPE: Record<string, 'info' | 'warning' | 'success'> = {
+  draft: 'info',
+  confirmed: 'warning',
+  checked: 'success',
+};
 
 // Blob URL for the just-uploaded PDF — populated client-side from the
 // File the user dropped, so the <embed> preview works without a backend
@@ -217,6 +239,7 @@ async function save(target: 'draft' | 'confirmed') {
   try {
     const payload = {
       ...form,
+      id: recordId.value ?? undefined,
       status: target,
       sourcePdfPath: sourcePdfPath.value,
       extractionConfidence: extractionConfidence.value,
@@ -227,11 +250,21 @@ async function save(target: 'draft' | 'confirmed') {
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-    const saved = (await res.json()) as { id?: number };
+    const saved = (await res.json()) as { id?: number; status?: string };
     ElMessage.success(target === 'draft' ? '已保存为草稿' : '已确认，可进入规则检查');
-    if (target === 'confirmed' && saved.id) {
-      // Phase 4 will register /records/:id/results — for now just log.
-      console.info('Saved confirmed record id:', saved.id);
+    if (saved.id) {
+      const isFirstSave = recordId.value === null;
+      recordId.value = saved.id;
+      recordStatus.value = (saved.status as typeof recordStatus.value) ?? target;
+      // Sync URL so refresh stays on the same record and the back-button
+      // history matches what the user sees.
+      if (route.query.id !== String(saved.id)) {
+        router.replace({ path: '/import', query: { id: String(saved.id) } });
+      }
+      if (isFirstSave) {
+        // Phase 4 will register /records/:id/results.
+        console.info('Saved record id:', saved.id);
+      }
     }
   } catch (err) {
     lastError.value = err instanceof Error ? err.message : String(err);
@@ -241,7 +274,65 @@ async function save(target: 'draft' | 'confirmed') {
   }
 }
 
+async function loadRecord(id: number) {
+  loadingRecord.value = true;
+  lastError.value = null;
+  try {
+    const res = await fetch(`/api/medical-records/${id}`);
+    if (res.status === 404) {
+      ElMessage.warning(`病案 #${id} 不存在或已删除`);
+      // Drop the bad id from the URL so subsequent reloads start clean.
+      router.replace({ path: '/import' });
+      return;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    const dto = (await res.json()) as MedicalRecord & {
+      id: number;
+      status?: 'draft' | 'confirmed' | 'checked';
+      createdAt?: string;
+    };
+    Object.assign(form, emptyRecord());
+    Object.assign(form, dto);
+    recordId.value = dto.id;
+    recordStatus.value = dto.status ?? 'draft';
+    recordCreatedAt.value = dto.createdAt ?? null;
+    extractionConfidence.value = dto.extractionConfidence ?? null;
+    sourcePdfPath.value = dto.sourcePdfPath ?? null;
+    setPdfBlobFromFile(null);
+    if (dto.sourcePdfPath) {
+      void loadPdfPreview(id);
+    }
+    formRef.value?.clearValidate();
+  } catch (err) {
+    lastError.value = err instanceof Error ? err.message : String(err);
+    ElMessage.error(`加载失败：${lastError.value}`);
+  } finally {
+    loadingRecord.value = false;
+  }
+}
+
+async function loadPdfPreview(id: number) {
+  try {
+    const res = await fetch(`/api/medical-records/${id}/pdf`);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    if (pdfBlobUrl.value) URL.revokeObjectURL(pdfBlobUrl.value);
+    pdfBlobUrl.value = URL.createObjectURL(blob);
+  } catch {
+    // PDF preview is best-effort — silently degrade if file is missing
+  }
+}
+
+function gotoList() {
+  router.push('/records');
+}
+
 function reset() {
+  if (recordId.value != null) {
+    void loadRecord(recordId.value);
+    ElMessage.info('已从服务器重新加载');
+    return;
+  }
   Object.assign(form, emptyRecord());
   extractionConfidence.value = null;
   sourcePdfPath.value = null;
@@ -250,13 +341,44 @@ function reset() {
   formRef.value?.clearValidate();
   ElMessage.info('已清空表单');
 }
+
+function parseRouteId(raw: unknown): number | null {
+  if (typeof raw !== 'string') return null;
+  return /^\d+$/.test(raw) ? Number(raw) : null;
+}
+
+onMounted(() => {
+  const id = parseRouteId(route.query.id);
+  if (id !== null) void loadRecord(id);
+});
+
+// Reload when the user clicks a different record in the list (?id changes
+// in-place without remounting the component).
+watch(
+  () => route.query.id,
+  (next) => {
+    const id = parseRouteId(next);
+    if (id !== null && id !== recordId.value) {
+      void loadRecord(id);
+    }
+  },
+);
 </script>
 
 <template>
-  <div class="page" :class="{ 'has-preview': !!pdfBlobUrl }">
+  <div class="page" :class="{ 'has-preview': !!pdfBlobUrl }" v-loading="loadingRecord">
     <header class="topbar">
       <el-button :icon="ArrowLeft" link @click="router.push('/')">返回首页</el-button>
-      <h1>病案首页录入</h1>
+      <el-button v-if="isEditMode" :icon="Files" link @click="gotoList">返回列表</el-button>
+      <h1>{{ isEditMode ? '病案首页编辑' : '病案首页录入' }}</h1>
+      <el-tag
+        v-if="isEditMode && recordStatus"
+        size="small"
+        :type="STATUS_TAG_TYPE[recordStatus]"
+        class="edit-badge"
+      >
+        #{{ recordId }} · {{ STATUS_LABEL[recordStatus] }}
+      </el-tag>
       <div class="progress-pill">
         <span class="progress-num">{{ fillRatio.filled }} / {{ fillRatio.total }}</span>
         <span class="progress-pct">{{ fillPercent }}%</span>
