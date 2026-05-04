@@ -22,7 +22,14 @@ public record DryRunResponse(
     List<String> validationErrors,
     String evaluationError
 ) {
-    public static DryRunResponse satisfied() {
+    /**
+     * Renamed away from {@code satisfied()} because Java record rules
+     * forbid declaring any method (even a static factory) whose name
+     * matches a component when the return type differs from the
+     * canonical accessor. The on-the-wire {@code status} string is
+     * still {@code "satisfied"}.
+     */
+    public static DryRunResponse pass() {
         return new DryRunResponse("satisfied", Boolean.TRUE, List.of(), null);
     }
 

@@ -93,7 +93,7 @@ public class RuleController {
 
         try {
             boolean ok = evaluator.evaluate(req.expression(), record);
-            return ok ? DryRunResponse.satisfied() : DryRunResponse.hit();
+            return ok ? DryRunResponse.pass() : DryRunResponse.hit();
         } catch (RuntimeException e) {
             log.warn("Dry-run evaluation failed", e);
             return DryRunResponse.error(e.getMessage());
