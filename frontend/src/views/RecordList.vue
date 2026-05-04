@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Refresh, Search, Plus, View, Document } from '@element-plus/icons-vue';
+import { Refresh, Search, Plus, View, Document, DataLine } from '@element-plus/icons-vue';
 
 interface RecordListItem {
   id: number;
@@ -108,9 +108,11 @@ function viewPdf(row: RecordListItem) {
 }
 
 function viewDetail(row: RecordListItem) {
-  // Phase 4 will register /records/:id/results; until then, show a JSON peek
-  // by hitting GET /{id}. Cheapest UX that doesn't lie about a missing page.
   router.push({ path: '/import', query: { id: String(row.id) } });
+}
+
+function viewResults(row: RecordListItem) {
+  router.push({ path: '/results', query: { recordId: String(row.id) } });
 }
 
 const fmtDate = (s: string | null) => (s ? s : '—');
@@ -217,9 +219,18 @@ const tableHeight = computed(() => 'calc(100vh - 290px)');
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="170" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" :icon="View" @click="viewDetail(row)">查看</el-button>
+            <el-button
+              link
+              type="primary"
+              :icon="DataLine"
+              :title="row.status === 'checked' ? '查看检查结果' : '尚未执行过检查 — 进入后可点“立即检查”'"
+              @click="viewResults(row)"
+            >
+              结果
+            </el-button>
             <el-button
               link
               type="primary"
