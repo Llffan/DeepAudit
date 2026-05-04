@@ -191,11 +191,39 @@ async function generateDsl() {
     const body = await res.json();
     if (body.dsl) {
       dslText.value = JSON.stringify(body.dsl, null, 2);
+      const filled: string[] = [];
+      if (typeof body.name === 'string' && body.name) {
+        form.name = body.name;
+        filled.push('名称');
+      }
+      if (typeof body.description === 'string' && body.description) {
+        form.description = body.description;
+        filled.push('说明');
+      }
+      if (typeof body.dimension === 'string' && body.dimension) {
+        form.dimension = body.dimension;
+        filled.push('维度');
+      }
+      if (typeof body.severity === 'string' && body.severity) {
+        form.severity = body.severity;
+        filled.push('严重度');
+      }
+      if (
+        typeof body.errorMessageTemplate === 'string' &&
+        body.errorMessageTemplate
+      ) {
+        form.errorMessageTemplate = body.errorMessageTemplate;
+        filled.push('错误消息');
+      }
+      const filledHint = filled.length > 0
+        ? `（已回写：${filled.join('、')}）`
+        : '';
       if (body.validationErrors && body.validationErrors.length > 0) {
         dslErrors.value = body.validationErrors;
-        aiHint.value = `生成成功但有 ${body.validationErrors.length} 项校验错误，请人工修正`;
+        aiHint.value =
+          `生成成功但有 ${body.validationErrors.length} 项校验错误，请人工修正${filledHint}`;
       } else {
-        aiHint.value = '生成成功，请人工复核 DSL 后保存';
+        aiHint.value = `生成成功，请人工复核后保存${filledHint}`;
       }
     } else if (body.rawOutput) {
       dslText.value = body.rawOutput;

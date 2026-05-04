@@ -43,8 +43,75 @@ class RuleGeneratorServiceTest {
     }
 
     @Test
-    @DisplayName("Clean JSON output produces a valid response with no errors")
-    void clean_json_passes_through() {
+    @DisplayName("Wrapper output populates dsl + all metadata fields")
+    void wrapper_output_populates_metadata() {
+        when(generator.generate(anyString())).thenReturn("""
+            {
+              "name": "年龄上限校验",
+              "description": "病案首页年龄字段不应超过 120 岁",
+              "dimension": "logic",
+              "severity": "hint",
+              "errorMessageTemplate": "年龄 {{age}} 异常",
+              "expression": {"op":"lte","field":"age","rhs":120}
+            }
+            """);
+
+        NlRuleResponse r = service.generate("年龄不超过 120");
+
+        assertNotNull(r.dsl());
+        assertEquals("lte", r.dsl().get("op").asText());
+        assertEquals("年龄上限校验", r.name());
+        assertEquals("病案首页年龄字段不应超过 120 岁", r.description());
+        assertEquals("logic", r.dimension());
+        assertEquals("hint", r.severity());
+        assertEquals("年龄 {{age}} 异常", r.errorMessageTemplate());
+        assertTrue(r.validationErrors().isEmpty(),
+            () -> "Expected no validation errors, got: " + r.validationErrors());
+        assertNull(r.rawOutput());
+    }
+
+    @Test
+    @DisplayName("Invalid dimension is dropped and reported, other fields survive")
+    void invalid_dimension_dropped_other_fields_kept() {
+        when(generator.generate(anyString())).thenReturn("""
+            {
+              "name": "测试规则",
+              "dimension": "bogus",
+              "severity": "hint",
+              "expression": {"op":"notNull","field":"age"}
+            }
+            """);
+
+        NlRuleResponse r = service.generate("任意输入");
+
+        assertNotNull(r.dsl());
+        assertEquals("测试规则", r.name());
+        assertNull(r.dimension(), "bogus dimension must be dropped");
+        assertEquals("hint", r.severity());
+        assertTrue(r.validationErrors().stream().anyMatch(e -> e.contains("维度")
+            && e.contains("bogus")));
+    }
+
+    @Test
+    @DisplayName("Invalid severity is dropped and reported")
+    void invalid_severity_dropped() {
+        when(generator.generate(anyString())).thenReturn("""
+            {
+              "severity": "critical",
+              "expression": {"op":"notNull","field":"age"}
+            }
+            """);
+
+        NlRuleResponse r = service.generate("任意输入");
+
+        assertNull(r.severity());
+        assertTrue(r.validationErrors().stream().anyMatch(e -> e.contains("严重度")
+            && e.contains("critical")));
+    }
+
+    @Test
+    @DisplayName("Bare DSL output (legacy format) still parses, no metadata")
+    void legacy_bare_dsl_still_parses() {
         when(generator.generate(anyString())).thenReturn(
             "{\"op\":\"lte\",\"field\":\"age\",\"rhs\":120}");
 
@@ -52,21 +119,28 @@ class RuleGeneratorServiceTest {
 
         assertNotNull(r.dsl());
         assertEquals("lte", r.dsl().get("op").asText());
-        assertTrue(r.validationErrors().isEmpty(),
-            () -> "Expected no validation errors, got: " + r.validationErrors());
+        assertNull(r.name());
+        assertNull(r.dimension());
+        assertNull(r.severity());
+        assertTrue(r.validationErrors().isEmpty());
         assertNull(r.rawOutput());
     }
 
     @Test
-    @DisplayName("Strips ```json ... ``` markdown fences")
+    @DisplayName("Strips ```json ... ``` markdown fences around wrapper")
     void strips_json_code_fence() {
-        when(generator.generate(anyString())).thenReturn(
-            "```json\n{\"op\":\"notNull\",\"field\":\"age\"}\n```");
+        when(generator.generate(anyString())).thenReturn("""
+            ```json
+            {"name":"年龄必填","dimension":"completeness","severity":"mandatory","expression":{"op":"notNull","field":"age"}}
+            ```
+            """);
 
         NlRuleResponse r = service.generate("年龄必填");
 
         assertNotNull(r.dsl());
         assertEquals("notNull", r.dsl().get("op").asText());
+        assertEquals("年龄必填", r.name());
+        assertEquals("completeness", r.dimension());
         assertTrue(r.validationErrors().isEmpty());
     }
 
@@ -83,14 +157,17 @@ class RuleGeneratorServiceTest {
     }
 
     @Test
-    @DisplayName("Invalid DSL still returns parsed JSON + validation errors")
+    @DisplayName("Invalid DSL inside wrapper still returns parsed JSON + validation errors")
     void invalid_dsl_returns_dsl_plus_errors() {
-        when(generator.generate(anyString())).thenReturn(
-            "{\"op\":\"foo\",\"args\":[]}");
+        when(generator.generate(anyString())).thenReturn("""
+            {"name":"坏规则","expression":{"op":"foo","args":[]}}
+            """);
 
         NlRuleResponse r = service.generate("无效规则");
 
         assertNotNull(r.dsl(), "Parsed JSON should be returned even when validation fails");
+        assertEquals("坏规则", r.name(),
+            "Metadata still surfaces even when expression fails validation");
         assertFalse(r.validationErrors().isEmpty());
         assertTrue(r.validationErrors().stream().anyMatch(e -> e.contains("unknown op 'foo'")));
     }

@@ -7,10 +7,18 @@ import java.util.List;
 /**
  * Response body for {@code POST /api/rules/from-natural-language} (T2.5).
  *
+ * <p>The LLM is asked to return a structured rule wrapper -- expression
+ * plus metadata (name / description / dimension / severity /
+ * errorMessageTemplate) -- so the UI can pre-fill the entire form, not
+ * just the DSL editor. Any subset of metadata fields may be {@code null}
+ * if the model omitted them or they failed enum validation; the UI keeps
+ * whatever the user has already typed when a field comes back null.
+ *
  * <p>Three possible outcomes mapped onto these fields:
  * <ul>
  *   <li><b>Clean success</b> -- {@code dsl} non-null,
- *       {@code validationErrors} empty, {@code rawOutput} null.
+ *       {@code validationErrors} empty, {@code rawOutput} null. Metadata
+ *       fields populated when the model emitted them.
  *   <li><b>Generated DSL fails T2.2 validation</b> -- {@code dsl} non-null
  *       with the parsed JSON, {@code validationErrors} populated. UI
  *       should still pre-fill the editor so the user can edit.
@@ -26,6 +34,11 @@ import java.util.List;
  */
 public record NlRuleResponse(
     JsonNode dsl,
+    String name,
+    String description,
+    String dimension,
+    String severity,
+    String errorMessageTemplate,
     List<String> validationErrors,
     String rawOutput
 ) {
