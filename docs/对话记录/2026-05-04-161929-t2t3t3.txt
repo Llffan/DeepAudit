@@ -1,0 +1,1342 @@
+╭─── Claude Code v2.1.126 ─────────────────────────────────────────────────────╮
+│                                          │ Tips for getting started          │
+│           Welcome back Alkaid!           │ Run /init to create a CLAUDE.md … │
+│                                          │ ───────────────────────────────── │
+│                  ▐▛███▜▌                 │ What's new                        │
+│                 ▝▜█████▛▘                │ The `/model` picker now lists mo… │
+│                   ▘▘ ▝▝                  │ - Added `claude project purge [p… │
+│                                          │ `--dangerously-skip-permissions`… │
+│   Opus 4.7 · Claude Team · CLAUDE TEAM   │ /release-notes for more           │
+│        F:\lf-workspace\DeepAudit         │                                   │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+❯ 读取当前项目文件夹下面的开发流程文档，现在是将T2步骤执行完了，然后下一步是T3  
+  ，先不要进入T3的流程                                                          
+
+  Searched for 2 patterns, read 1 file (ctrl+o to expand)
+
+● 已读取开发流程文档。当前状态确认如下：
+
+  进度概览
+
+  已完成 — 阶段 2（Day 1 下午 · 规则引擎 + 规则配置）
+  - T2.1 RuleEvaluator（DSL 求值器）
+  - T2.2 RuleDslValidator
+  - T2.3 规则 CRUD API（4 个端点 + 编辑抽屉）
+  - T2.4 langchain4j 配置（已切换至 Google AI Gemini 2.5 Flash）
+  - T2.5 NL→Rule LLM 端点 + AI 写规则 UI
+  - T2.6 前端规则列表 + 编辑抽屉
+
+  校验点 2 —— 待人工过一遍 5 项验收（看到 R001/R002、启停切换、dry-run 命中、AI
+  写规则保存、启用态删除被拦截）。
+
+  ---
+  下一阶段（T3 / 阶段 3：Day 2 上午 · PDF 导入，4h）
+
+  目标：上传一份 PDF，30 秒内字段表单出来，可修改后保存。
+
+  ┌──────┬──────┬────────────────────────────────────────────────────────────┐
+  │ 任务 │ 工时 │                            内容                            │
+  ├──────┼──────┼────────────────────────────────────────────────────────────┤
+  │ T3.1 │ 0.5h │ PDFBox 集成（200 DPI 渲染 PNG，docker 装 noto-cjk 字体）   │
+  ├──────┼──────┼────────────────────────────────────────────────────────────┤
+  │ T3.2 │ 1.0h │ MedicalRecordExtractor AiService（多模态抽取，prompt       │
+  │      │      │ 文件，"宁缺勿臆测"）                                       │
+  ├──────┼──────┼────────────────────────────────────────────────────────────┤
+  │ T3.3 │ 1.0h │ POST /api/medical-records/import（multipart → 落盘 → 抽取  │
+  │      │      │ → 入库，LLM 失败回退手填）                                 │
+  ├──────┼──────┼────────────────────────────────────────────────────────────┤
+  │ T3.4 │ 0.5h │ 前端上传页（拖拽 + loading + 错误提示）                    │
+  ├──────┼──────┼────────────────────────────────────────────────────────────┤
+  │ T3.5 │ 1.0h │ 前端字段确认页（PDF 预览 + 字段表单 + 置信度）             │
+  └──────┴──────┴────────────────────────────────────────────────────────────┘
+
+  关键风险点（来自 §9）：
+  - R7 中文渲染：docker base image 必须装 noto-cjk
+  - R2 LLM 臆测：prompt 强制"模糊字段输出 null"
+  - §8.7 LLM 失败回退：返回空 schema + extraction_confidence=0，前端切手填模式
+  - 事务边界：文件落盘 + DB 入库一并成功或一并清理
+
+  按你说的，T3 暂不开始。等你说"进入 T3"或先完成校验点 2 的验收。
+
+✻ Crunched for 29s
+
+❯ 现在仓库中的代码已经配置好大模型，拉取代码                                    
+
+● Bash(git status && git remote -v && git fetch)
+  ⎿  On branch main
+     Your branch is up to date with 'origin/main'.
+     … +5 lines (ctrl+o to expand)
+
+● 远程有新提交，工作区干净，准备拉取。
+
+● Bash(git log --oneline 95cbc92..origin/main && git pull --ff-only)
+  ⎿  c79f1ea 调用大模型配置API KEY
+     810831f 修复test
+     Updating 95cbc92..c79f1ea
+     … +8 lines (ctrl+o to expand)
+
+● 已拉取，快进 2 个 commit：
+
+  - 810831f 修复 test（DeepauditApplicationTests.java +5 行）
+  - c79f1ea 调用大模型配置 API KEY（application.yml / application-docker.yml）
+
+  变更只动了 3 个配置/测试文件，未触碰业务代码。要不要我打开这两个 yml
+  看一下大模型 Key 现在是怎么注入的（环境变量 vs 直写），确认 T3 调用
+  MedicalRecordExtractor 时的鉴权路径就绪？
+
+✻ Brewed for 17s
+
+❯ 在新建规则中调用大模型生成DSL，结果生成之后回写到前端页面上去                 
+
+  Searched for 3 patterns, read 1 file (ctrl+o to expand)
+
+● 这个功能其实在 T2.5 已经实现过了，让我核对一下两端的链路是否齐备。
+
+  Read 2 files (ctrl+o to expand)
+
+● 链路已经齐了 —— T2.5 commit (95cbc92) 已经把"NL → 大模型 → 回写到前端 DSL
+  编辑器"的整条路打通：
+
+  现有实现
+
+  后端 POST /api/rules/from-natural-language
+  - RuleController.java:102-105 → RuleGeneratorService.generate()
+  - 流程：LLM 调用 → 剥 markdown 代码围栏 → Jackson 解析 → RuleDslValidator
+  二次校验 → 返回 {dsl, validationErrors, rawOutput}
+
+  前端 RuleEditorDrawer.vue
+  - 新建/编辑抽屉里有「AI 写规则」分组（:290-310）：textarea 输入自然语言 +
+  「生成 DSL」按钮
+  - generateDsl() (:167-213) 拿到 body.dsl 后已经回写到下方「DSL
+  表达式」编辑器：
+  dslText.value = JSON.stringify(body.dsl, null, 2);
+  - 同时把 validationErrors 渲染到红框，把状态写入 aiHint
+
+  想确认的
+
+  你说"想要回写到前端页面"——是发现哪里没生效吗？三种可能性：
+
+  1. 功能本身有 bug（按了没反应 / 回写位置不对 / 报错） →
+  告诉我具体现象，我去定位
+  2. 入口不够显眼（藏在抽屉的表单项里，希望放到顶部或独立模态） → 我可以重做交互
+  3. 想要的是另一种回写（比如把规则名/说明/severity 也一并由 AI
+  推断填入，而不仅是 DSL JSON） → 这需要扩 NlRuleResponse 和 prompt
+
+  告诉我是哪一种，我再动手。
+
+✻ Baked for 40s
+
+❯ 当前的回写仅仅只是回写了DSL表达式，实现回写名称、说明、维度、扣分项和错误消息 
+  模板                                                                          
+
+● 先看一下现在的 prompt、AiService 接口和 DTO 结构。
+
+  Searched for 1 pattern, read 4 files (ctrl+o to expand)
+
+● 确认现状后，方案如下：
+
+  改动方案
+
+  让 LLM 输出一个包装对象（不是裸的 DSL）：
+
+  {
+    "name": "...",
+    "description": "...",
+    "dimension": "logic",      // 4 选 1 枚举
+    "severity": "hint",        // 3 选 1 枚举
+    "errorMessageTemplate": "...{{age}}...",
+    "expression": { ...原 DSL... }
+  }
+
+  回写策略：5 个 metadata 字段 AI 给出什么就覆盖什么，AI
+  没给的字段保留用户已填值。dimension/severity
+  必须落在合法枚举内（后端校验），非法则不回写、报到 validationErrors。
+
+  向下兼容：若 LLM 仍输出裸 DSL（无 expression 字段），把整对象当
+  expression，metadata 留空。
+
+  改动 4 个文件：
+  1. prompts/rule_dsl_generator.system.txt —— 教模型输出 wrapper
+  2. NlRuleResponse.java —— 加 5 字段
+  3. RuleGeneratorService.java —— 解析 wrapper + 枚举校验
+  4. RuleEditorDrawer.vue —— generateDsl() 回写 form
+
+  先看看有没有现有测试要改。
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● 现有测试期望的是裸 DSL 输出，所以新方案要保留向下兼容（裸 DSL 视为只有
+  expression、无 metadata）。开始改。
+
+  1) Prompt 改写
+
+● Write(backend\src\main\resources\prompts\rule_dsl_generator.system.txt)
+  ⎿  Added 42 lines, removed 16 lines
+       1 -You are a QC rule DSL generator for medical record (病案首页) q
+         -uality                                                         
+       2 -control. Translate the user's natural-language rule description
+         - into a                                                        
+       3 -JSON DSL tree.                                                 
+       1 +You are a QC rule authoring assistant for medical record (病案 
+         +首页)                                                          
+       2 +quality control. Translate the user's natural-language rule des
+         +cription                                                       
+       3 +into a structured rule definition.                             
+       4  
+       5  OUTPUT FORMAT (strict)
+       6  - Output a single JSON object only.
+       7  - No prose. No markdown code fences. No commentary before or af
+          ter.
+       8  - The output will be parsed and structurally validated.
+       9  
+      10 -GRAMMAR                                                        
+      10 +TOP-LEVEL SHAPE                                                
+      11  
+      12 -Two top-level shapes:                                          
+      12 +  {                                                            
+      13 +    "name": "<concise rule title, <=30 中文字符 / 60 chars>",  
+      14 +    "description": "<one sentence business description in Chine
+         +se>",                                                          
+      15 +    "dimension": "<one of: completeness | logic | standardizati
+         +on | consistency>",                                            
+      16 +    "severity": "<one of: mandatory | deduction | hint>",      
+      17 +    "errorMessageTemplate": "<message template, may use {{field
+         +Name}} placeholders>",                                         
+      18 +    "expression": <DSL expression -- see GRAMMAR below>        
+      19 +  }                                                            
+      20  
+      21 +FIELD GUIDANCE                                                 
+      22 +                                                               
+      23 +- name: short verb phrase, e.g. "年龄上限校验", "主手术信息一致
+         +性".                                                           
+      24 +- description: explain in one Chinese sentence what the rule en
+         +forces.                                                        
+      25 +- dimension: pick the closest match.                           
+      26 +    completeness     -- whether required fields are filled (not
+         +Null/isNull dominant)                                          
+      27 +    logic            -- business correctness (date order, value
+         + ranges, derived fields)                                       
+      28 +    standardization  -- encoding / format conformance (ICD code
+         +, version, naming)                                             
+      29 +    consistency      -- cross-field agreement (code vs. name, d
+         +ate vs. days)                                                  
+      30 +- severity: pick by impact.                                    
+      31 +    mandatory  -- core demographic / index fields missing (病案
+         +号/姓名/性别/出院日期)                                         
+      32 +    deduction  -- clearly wrong data that must be corrected (日
+         +期反序/住院天数错算)                                           
+      33 +    hint       -- boundary anomaly that needs human confirmatio
+         +n (年龄>120, 总费用>10万)                                      
+      34 +- errorMessageTemplate: directly state what is wrong, in Chines
+         +e. Use                                                         
+      35 +  {{fieldName}} to embed the offending value. Examples:        
+      36 +    "年龄 {{age}} 异常，超过 120 岁，请人工确认"               
+      37 +    "主手术编码已填写但手术医生 {{operator}} 或手术日期 {{opera
+         +tionDate}} 缺失"                                               
+      38 +                                                               
+      39 +GRAMMAR (for the "expression" field)                           
+      40 +                                                               
+      41 +Two top-level shapes for the expression:                       
+      42 +                                                               
+      43    Shape A (guarded -- "if X then Y must hold"):
+      44      {"when": <boolExpr>, "assert": <boolExpr>}
+      45  
+      46    Shape B (direct -- unconditional assertion):
+      47      {"op": <booleanOp>, ...operands}
+      48  
+      20 -Semantics: the top-level expression returns true when the rule 
+         -is                                                             
+      21 -satisfied. A false result fires the rule (records a violation).
+         - With a                                                        
+      22 -guard, the rule is satisfied automatically when the guard is fa
+         -lse.                                                           
+      49 +Semantics: the expression returns true when the rule is satisfi
+         +ed. A                                                          
+      50 +false result fires the rule (records a violation). With a guard
+         +, the                                                          
+      51 +rule is satisfied automatically when the guard is false.       
+      52  
+      53  Boolean operators (yield true/false):
+      54    and, or:    {"op": "and|or", "args": [<boolExpr>, ...]}
+     ...
+       84  EXAMPLES
+       85  
+       86  Input:  "主手术编码非空时，手术医生与手术日期不能为空"
+       58 -Output: {"when":{"op":"notNull","field":"mainOperationCode"},"
+          -assert":{"op":"and","args":[{"op":"notNull","field":"operator"
+          -},{"op":"notNull","field":"operationDate"}]}}                 
+       87 +Output: {"name":"主手术信息完整性","description":"主手术编码已
+          +填写时，手术医生与手术日期必须同步填写","dimension":"completen
+          +ess","severity":"deduction","errorMessageTemplate":"主手术编码
+          + {{mainOperationCode}} 已填写，但手术医生或手术日期缺失","expr
+          +ession":{"when":{"op":"notNull","field":"mainOperationCode"},"
+          +assert":{"op":"and","args":[{"op":"notNull","field":"operator"
+          +},{"op":"notNull","field":"operationDate"}]}}}                
+       88  
+       89  Input:  "入院日期早于出院日期，且住院天数 = 出院日期 - 入院日
+           期"
+       61 -Output: {"op":"and","args":[{"op":"dateBefore","field":"admiss
+          -ionDate","rhs":{"field":"dischargeDate"}},{"op":"eq","field":"
+          -lengthOfStay","rhs":{"op":"dateDiffDays","from":"admissionDate
+          -","to":"dischargeDate"}}]}                                    
+       90 +Output: {"name":"住院日期与天数一致性","description":"入院日期
+          +必须早于出院日期，且住院天数等于出入院日期之差","dimension":"c
+          +onsistency","severity":"deduction","errorMessageTemplate":"住 
+          +院天数 {{lengthOfStay}} 与入院/出院日期不一致","expression":{"
+          +op":"and","args":[{"op":"dateBefore","field":"admissionDate","
+          +rhs":{"field":"dischargeDate"}},{"op":"eq","field":"lengthOfSt
+          +ay","rhs":{"op":"dateDiffDays","from":"admissionDate","to":"di
+          +schargeDate"}}]}}                                             
+       91  
+       92  Input:  "年龄超过 120 岁时提示用户确认"
+       64 -Output: {"op":"lte","field":"age","rhs":120}                  
+       93 +Output: {"name":"年龄上限校验","description":"病案首页年龄字段
+          +不应超过 120 岁","dimension":"logic","severity":"hint","errorM
+          +essageTemplate":"年龄 {{age}} 异常，超过 120 岁，请人工确认","
+          +expression":{"op":"lte","field":"age","rhs":120}}             
+       94  
+       66 -Input:  "总费用大于 100000 元提示"                            
+       67 -Output: {"op":"lte","field":"totalCost","rhs":100000}         
+       68 -                                                              
+       95  Input:  "性别必须填写"
+       70 -Output: {"op":"notNull","field":"gender"}                     
+       96 +Output: {"name":"性别必填","description":"病案首页性别字段必须
+          +填写","dimension":"completeness","severity":"mandatory","error
+          +MessageTemplate":"性别字段未填写","expression":{"op":"notNull"
+          +,"field":"gender"}}                                           
+       97  
+       98  Input:  "如果是男性，年龄不能超过 150"
+       73 -Output: {"when":{"op":"eq","field":"gender","rhs":"男"},"asser
+          -t":{"op":"lte","field":"age","rhs":150}}                      
+       99 +Output: {"name":"男性年龄上限","description":"性别为男性时年龄
+          +不应超过 150 岁","dimension":"logic","severity":"hint","errorM
+          +essageTemplate":"男性年龄 {{age}} 超过 150 岁","expression":{"
+          +when":{"op":"eq","field":"gender","rhs":"男"},"assert":{"op":"
+          +lte","field":"age","rhs":150}}}                               
+      100  
+      101  Now translate the user's input. Output JSON only.
+
+● 2) NlRuleResponse 加 5 个字段
+
+● Write(backend\src\main\java\com\deepaudit\api\dto\NlRuleResponse.java)
+  ⎿  Added 14 lines, removed 1 line
+       7  /**
+       8   * Response body for {@code POST /api/rules/from-natural-langua
+          ge} (T2.5).
+       9   *
+      10 + * <p>The LLM is asked to return a structured rule wrapper -- e
+         +xpression                                                      
+      11 + * plus metadata (name / description / dimension / severity /  
+      12 + * errorMessageTemplate) -- so the UI can pre-fill the entire f
+         +orm, not                                                       
+      13 + * just the DSL editor. Any subset of metadata fields may be {@
+         +code null}                                                     
+      14 + * if the model omitted them or they failed enum validation; th
+         +e UI keeps                                                     
+      15 + * whatever the user has already typed when a field comes back 
+         +null.                                                          
+      16 + *                                                             
+      17   * <p>Three possible outcomes mapped onto these fields:
+      18   * <ul>
+      19   *   <li><b>Clean success</b> -- {@code dsl} non-null,
+      13 - *       {@code validationErrors} empty, {@code rawOutput} null
+         -.                                                              
+      20 + *       {@code validationErrors} empty, {@code rawOutput} null
+         +. Metadata                                                     
+      21 + *       fields populated when the model emitted them.         
+      22   *   <li><b>Generated DSL fails T2.2 validation</b> -- {@code d
+          sl} non-null
+      23   *       with the parsed JSON, {@code validationErrors} populat
+          ed. UI
+      24   *       should still pre-fill the editor so the user can edit.
+     ...
+      34   */
+      35  public record NlRuleResponse(
+      36      JsonNode dsl,
+      37 +    String name,                                               
+      38 +    String description,                                        
+      39 +    String dimension,                                          
+      40 +    String severity,                                           
+      41 +    String errorMessageTemplate,                               
+      42      List<String> validationErrors,
+      43      String rawOutput
+      44  ) {
+
+● 3) RuleGeneratorService 解析 wrapper + 枚举校验
+
+● Write(backend\src\main\java\com\deepaudit\service\RuleGeneratorService.java)  ⎿  Added 96 lines, removed 24 lines
+      11  import org.springframework.beans.factory.ObjectProvider;
+      12  import org.springframework.stereotype.Service;
+      13  
+      14 +import java.util.ArrayList;                                    
+      15  import java.util.List;
+      16 +import java.util.Set;                                          
+      17  
+      18  /**
+      17 - * Orchestrates the natural-language -> DSL pipeline (T2.5 / pl
+         -an §8.3):                                                      
+      19 + * Orchestrates the natural-language -> rule wrapper pipeline (
+         +T2.5 /                                                         
+      20 + * plan §8.3):                                                 
+      21   *
+      22   * <pre>
+      23   *   user input -> RuleDslGenerator (langchain4j AiService over
+           Gemini)
+      24   *              -> strip accidental ```...``` fences
+      25   *              -> Jackson parse to JsonNode
+      23 - *              -> T2.2 RuleDslValidator (mandatory R10 second-
+         -pass defense)                                                  
+      24 - *              -> NlRuleResponse                              
+      26 + *              -> extract wrapper (expression + metadata) OR f
+         +all back                                                       
+      27 + *                 to legacy bare-DSL output for backward compa
+         +tibility                                                       
+      28 + *              -> T2.2 RuleDslValidator on the expression     
+      29 + *                 (mandatory R10 second-pass defense)         
+      30 + *              -> enum-validate dimension / severity (drop if 
+         +invalid)                                                       
+      31 + *              -> NlRuleResponse with whatever metadata surviv
+         +ed                                                             
+      32   * </pre>
+      33   *
+      34   * <p>Validation failures do NOT throw -- the parsed DSL plus t
+          he
+      35   * validation error list are returned together so the UI can pr
+          e-fill
+      36   * the editor and let the user fix the LLM's output rather than
+           starting
+      30 - * from scratch.                                               
+      37 + * from scratch. Metadata fields that fail enum checks are null
+         +ed out so                                                      
+      38 + * the UI doesn't try to write garbage into the form.          
+      39   */
+      40  @Service
+      41  public class RuleGeneratorService {
+      42  
+      43      private static final Logger log = LoggerFactory.getLogger(R
+          uleGeneratorService.class);
+      44  
+      45 +    private static final Set<String> ALLOWED_DIMENSIONS =      
+      46 +        Set.of("completeness", "logic", "standardization", "con
+         +sistency");                                                    
+      47 +    private static final Set<String> ALLOWED_SEVERITIES =      
+      48 +        Set.of("mandatory", "deduction", "hint");              
+      49 +                                                               
+      50      private final ObjectProvider<RuleDslGenerator> generatorPro
+          vider;
+      51      private final RuleDslValidator dslValidator;
+      52      private final ObjectMapper mapper;
+     ...
+      61  
+      62      public NlRuleResponse generate(String naturalLanguage) {
+      63          if (naturalLanguage == null || naturalLanguage.isBlank(
+          )) {
+      51 -            return new NlRuleResponse(null,                    
+      52 -                List.of("naturalLanguage 不能为空"),           
+      53 -                null);                                         
+      64 +            return error("naturalLanguage 不能为空", null);    
+      65          }
+      66  
+      67          RuleDslGenerator gen = generatorProvider.getIfAvailable
+          ();
+     ...
+       76          } catch (RuntimeException e) {
+       77              log.warn("LLM call failed for input '{}': {}",
+       78                  truncateForLog(naturalLanguage), e.getMessage(
+           ));
+       68 -            return new NlRuleResponse(null,                   
+       69 -                List.of("LLM 调用失败：" + e.getMessage()),   
+       70 -                null);                                        
+       79 +            return error("LLM 调用失败：" + e.getMessage(), nu
+          +ll);                                                          
+       80          }
+       81  
+       82          String clean = stripCodeFences(raw);
+       74 -        JsonNode dsl;                                         
+       83 +        JsonNode root;                                        
+       84          try {
+       76 -            dsl = mapper.readTree(clean);                     
+       85 +            root = mapper.readTree(clean);                    
+       86          } catch (Exception e) {
+       78 -            return new NlRuleResponse(null,                   
+       79 -                List.of("LLM 输出不是合法 JSON：" + e.getMessa
+          -ge()),                                                        
+       80 -                clean);                                       
+       87 +            return error("LLM 输出不是合法 JSON：" + e.getMess
+          +age(), clean);                                                
+       88          }
+       89  
+       83 -        // Detect the explicit "field_not_found" sentinel that
+          - the prompt                                                   
+       84 -        // instructs the model to emit when no field maps clea
+          -nly.                                                          
+       85 -        if (dsl.isObject() && dsl.has("_error")               
+       86 -            && "field_not_found".equals(dsl.path("_error").asT
+          -ext())) {                                                     
+       87 -            return new NlRuleResponse(null,                   
+       88 -                List.of("AI 无法识别字段 '"                   
+       89 -                    + dsl.path("_requested").asText("?") + "' 
+          -，请改用 30 个白名单字段中的一个"),                           
+       90 +        // Sentinel: model says it cannot map a field name to 
+          +the whitelist.                                                
+       91 +        if (root.isObject() && root.has("_error")             
+       92 +            && "field_not_found".equals(root.path("_error").as
+          +Text())) {                                                    
+       93 +            return error("AI 无法识别字段 '"                  
+       94 +                + root.path("_requested").asText("?") + "'，请
+          +改用 30 个白名单字段中的一个",                                
+       95                  clean);
+       96          }
+       97  
+       93 -        ValidationResult vr = dslValidator.validate(dsl);     
+       94 -        return new NlRuleResponse(dsl, vr.errors(), null);    
+       98 +        // Wrapper format: {expression, name, description, dim
+          +ension, severity, errorMessageTemplate}                       
+       99 +        // Legacy fallback: a bare DSL object (no "expression"
+          + key) -- treat the whole node as expression.                  
+      100 +        JsonNode expression;                                  
+      101 +        String name = null;                                   
+      102 +        String description = null;                            
+      103 +        String dimension = null;                              
+      104 +        String severity = null;                               
+      105 +        String errorMessageTemplate = null;                   
+      106 +        List<String> errors = new ArrayList<>();              
+      107 +                                                              
+      108 +        if (root.isObject() && root.has("expression")) {      
+      109 +            expression = root.get("expression");              
+      110 +            name = textOrNull(root, "name");                  
+      111 +            description = textOrNull(root, "description");    
+      112 +            errorMessageTemplate = textOrNull(root, "errorMess
+          +ageTemplate");                                                
+      113 +                                                              
+      114 +            String rawDimension = textOrNull(root, "dimension"
+          +);                                                            
+      115 +            if (rawDimension != null) {                       
+      116 +                if (ALLOWED_DIMENSIONS.contains(rawDimension))
+          + {                                                            
+      117 +                    dimension = rawDimension;                 
+      118 +                } else {                                      
+      119 +                    errors.add("AI 给出的维度 '" + rawDimensio
+          +n                                                             
+      120 +                        + "' 不在白名单内，已忽略，请人工选择"
+          +);                                                            
+      121 +                }                                             
+      122 +            }                                                 
+      123 +                                                              
+      124 +            String rawSeverity = textOrNull(root, "severity");
+      125 +            if (rawSeverity != null) {                        
+      126 +                if (ALLOWED_SEVERITIES.contains(rawSeverity)) 
+          +{                                                             
+      127 +                    severity = rawSeverity;                   
+      128 +                } else {                                      
+      129 +                    errors.add("AI 给出的严重度 '" + rawSeveri
+          +ty                                                            
+      130 +                        + "' 不在白名单内，已忽略，请人工选择"
+          +);                                                            
+      131 +                }                                             
+      132 +            }                                                 
+      133 +        } else {                                              
+      134 +            // Legacy bare-DSL output -- still callable, just 
+          +no metadata to fill.                                          
+      135 +            expression = root;                                
+      136 +        }                                                     
+      137 +                                                              
+      138 +        ValidationResult vr = dslValidator.validate(expression
+          +);                                                            
+      139 +        errors.addAll(vr.errors());                           
+      140 +                                                              
+      141 +        return new NlRuleResponse(                            
+      142 +            expression,                                       
+      143 +            name,                                             
+      144 +            description,                                      
+      145 +            dimension,                                        
+      146 +            severity,                                         
+      147 +            errorMessageTemplate,                             
+      148 +            errors,                                           
+      149 +            null                                              
+      150 +        );                                                    
+      151      }
+      152  
+      153 +    private static NlRuleResponse error(String message, String
+          + rawOutput) {                                                 
+      154 +        return new NlRuleResponse(                            
+      155 +            null, null, null, null, null, null,               
+      156 +            List.of(message),                                 
+      157 +            rawOutput                                         
+      158 +        );                                                    
+      159 +    }                                                         
+      160 +                                                              
+      161 +    private static String textOrNull(JsonNode node, String fie
+          +ld) {                                                         
+      162 +        JsonNode v = node.get(field);                         
+      163 +        if (v == null || v.isNull()) return null;             
+      164 +        if (!v.isTextual()) return null;                      
+      165 +        String s = v.asText().trim();                         
+      166 +        return s.isEmpty() ? null : s;                        
+      167 +    }                                                         
+      168 +                                                              
+      169      /**
+      170       * Strips ```json ... ``` and ``` ... ``` markdown fences 
+           that some
+      171       * models still emit despite "no markdown" instructions. I
+           dempotent
+
+● 4) 测试更新（兼容裸 DSL + 新增 wrapper 用例）
+
+● Write(backend\src\test\java\com\deepaudit\service\RuleGeneratorServiceTest.jav
+       a)
+  ⎿  Added 87 lines, removed 10 lines
+       43      }
+       44  
+       45      @Test
+       46 -    @DisplayName("Clean JSON output produces a valid response 
+          -with no errors")                                              
+       47 -    void clean_json_passes_through() {                        
+       48 -        when(generator.generate(anyString())).thenReturn(     
+       49 -            "{\"op\":\"lte\",\"field\":\"age\",\"rhs\":120}");
+       46 +    @DisplayName("Wrapper output populates dsl + all metadata 
+          +fields")                                                      
+       47 +    void wrapper_output_populates_metadata() {                
+       48 +        when(generator.generate(anyString())).thenReturn("""  
+       49 +            {                                                 
+       50 +              "name": "年龄上限校验",                         
+       51 +              "description": "病案首页年龄字段不应超过 120 岁"
+          +,                                                             
+       52 +              "dimension": "logic",                           
+       53 +              "severity": "hint",                             
+       54 +              "errorMessageTemplate": "年龄 {{age}} 异常",    
+       55 +              "expression": {"op":"lte","field":"age","rhs":12
+          +0}                                                            
+       56 +            }                                                 
+       57 +            """);                                             
+       58  
+       59          NlRuleResponse r = service.generate("年龄不超过 120");
+       60  
+       61          assertNotNull(r.dsl());
+       62          assertEquals("lte", r.dsl().get("op").asText());
+       63 +        assertEquals("年龄上限校验", r.name());               
+       64 +        assertEquals("病案首页年龄字段不应超过 120 岁", r.desc
+          +ription());                                                   
+       65 +        assertEquals("logic", r.dimension());                 
+       66 +        assertEquals("hint", r.severity());                   
+       67 +        assertEquals("年龄 {{age}} 异常", r.errorMessageTempla
+          +te());                                                        
+       68          assertTrue(r.validationErrors().isEmpty(),
+       69              () -> "Expected no validation errors, got: " + r.v
+           alidationErrors());
+       70          assertNull(r.rawOutput());
+       71      }
+       72  
+       73      @Test
+       61 -    @DisplayName("Strips ```json ... ``` markdown fences")    
+       62 -    void strips_json_code_fence() {                           
+       74 +    @DisplayName("Invalid dimension is dropped and reported, o
+          +ther fields survive")                                         
+       75 +    void invalid_dimension_dropped_other_fields_kept() {      
+       76 +        when(generator.generate(anyString())).thenReturn("""  
+       77 +            {                                                 
+       78 +              "name": "测试规则",                             
+       79 +              "dimension": "bogus",                           
+       80 +              "severity": "hint",                             
+       81 +              "expression": {"op":"notNull","field":"age"}    
+       82 +            }                                                 
+       83 +            """);                                             
+       84 +                                                              
+       85 +        NlRuleResponse r = service.generate("任意输入");      
+       86 +                                                              
+       87 +        assertNotNull(r.dsl());                               
+       88 +        assertEquals("测试规则", r.name());                   
+       89 +        assertNull(r.dimension(), "bogus dimension must be dro
+          +pped");                                                       
+       90 +        assertEquals("hint", r.severity());                   
+       91 +        assertTrue(r.validationErrors().stream().anyMatch(e ->
+          + e.contains("维度")                                           
+       92 +            && e.contains("bogus")));                         
+       93 +    }                                                         
+       94 +                                                              
+       95 +    @Test                                                     
+       96 +    @DisplayName("Invalid severity is dropped and reported")  
+       97 +    void invalid_severity_dropped() {                         
+       98 +        when(generator.generate(anyString())).thenReturn("""  
+       99 +            {                                                 
+      100 +              "severity": "critical",                         
+      101 +              "expression": {"op":"notNull","field":"age"}    
+      102 +            }                                                 
+      103 +            """);                                             
+      104 +                                                              
+      105 +        NlRuleResponse r = service.generate("任意输入");      
+      106 +                                                              
+      107 +        assertNull(r.severity());                             
+      108 +        assertTrue(r.validationErrors().stream().anyMatch(e ->
+          + e.contains("严重度")                                         
+      109 +            && e.contains("critical")));                      
+      110 +    }                                                         
+      111 +                                                              
+      112 +    @Test                                                     
+      113 +    @DisplayName("Bare DSL output (legacy format) still parses
+          +, no metadata")                                               
+      114 +    void legacy_bare_dsl_still_parses() {                     
+      115          when(generator.generate(anyString())).thenReturn(
+       64 -            "```json\n{\"op\":\"notNull\",\"field\":\"age\"}\n
+          -```");                                                        
+      116 +            "{\"op\":\"lte\",\"field\":\"age\",\"rhs\":120}");
+      117  
+      118 +        NlRuleResponse r = service.generate("年龄不超过 120");
+      119 +                                                              
+      120 +        assertNotNull(r.dsl());                               
+      121 +        assertEquals("lte", r.dsl().get("op").asText());      
+      122 +        assertNull(r.name());                                 
+      123 +        assertNull(r.dimension());                            
+      124 +        assertNull(r.severity());                             
+      125 +        assertTrue(r.validationErrors().isEmpty());           
+      126 +        assertNull(r.rawOutput());                            
+      127 +    }                                                         
+      128 +                                                              
+      129 +    @Test                                                     
+      130 +    @DisplayName("Strips ```json ... ``` markdown fences aroun
+          +d wrapper")                                                   
+      131 +    void strips_json_code_fence() {                           
+      132 +        when(generator.generate(anyString())).thenReturn("""  
+      133 +            ```json                                           
+      134 +            {"name":"年龄必填","dimension":"completeness","sev
+          +erity":"mandatory","expression":{"op":"notNull","field":"age"}
+          +}                                                             
+      135 +            ```                                               
+      136 +            """);                                             
+      137 +                                                              
+      138          NlRuleResponse r = service.generate("年龄必填");
+      139  
+      140          assertNotNull(r.dsl());
+      141          assertEquals("notNull", r.dsl().get("op").asText());
+      142 +        assertEquals("年龄必填", r.name());                   
+      143 +        assertEquals("completeness", r.dimension());          
+      144          assertTrue(r.validationErrors().isEmpty());
+      145      }
+      146  
+     ...
+      157      }
+      158  
+      159      @Test
+       86 -    @DisplayName("Invalid DSL still returns parsed JSON + vali
+          -dation errors")                                               
+      160 +    @DisplayName("Invalid DSL inside wrapper still returns par
+          +sed JSON + validation errors")                                
+      161      void invalid_dsl_returns_dsl_plus_errors() {
+       88 -        when(generator.generate(anyString())).thenReturn(     
+       89 -            "{\"op\":\"foo\",\"args\":[]}");                  
+      162 +        when(generator.generate(anyString())).thenReturn("""  
+      163 +            {"name":"坏规则","expression":{"op":"foo","args":[
+          +]}}                                                           
+      164 +            """);                                             
+      165  
+      166          NlRuleResponse r = service.generate("无效规则");
+      167  
+      168          assertNotNull(r.dsl(), "Parsed JSON should be returned
+            even when validation fails");
+      169 +        assertEquals("坏规则", r.name(),                      
+      170 +            "Metadata still surfaces even when expression fail
+          +s validation");                                               
+      171          assertFalse(r.validationErrors().isEmpty());
+      172          assertTrue(r.validationErrors().stream().anyMatch(e ->
+            e.contains("unknown op 'foo'")));
+      173      }
+
+● 5) 前端 generateDsl() 回写 5 个 metadata 字段
+
+● Update(frontend\src\components\RuleEditorDrawer.vue)
+  ⎿  Added 30 lines, removed 2 lines
+      191      const body = await res.json();
+      192      if (body.dsl) {
+      193        dslText.value = JSON.stringify(body.dsl, null, 2);
+      194 +      const filled: string[] = [];                            
+      195 +      if (typeof body.name === 'string' && body.name) {       
+      196 +        form.name = body.name;                                
+      197 +        filled.push('名称');                                  
+      198 +      }                                                       
+      199 +      if (typeof body.description === 'string' && body.descrip
+          +tion) {                                                       
+      200 +        form.description = body.description;                  
+      201 +        filled.push('说明');                                  
+      202 +      }                                                       
+      203 +      if (typeof body.dimension === 'string' && body.dimension
+          +) {                                                           
+      204 +        form.dimension = body.dimension;                      
+      205 +        filled.push('维度');                                  
+      206 +      }                                                       
+      207 +      if (typeof body.severity === 'string' && body.severity) 
+          +{                                                             
+      208 +        form.severity = body.severity;                        
+      209 +        filled.push('严重度');                                
+      210 +      }                                                       
+      211 +      if (                                                    
+      212 +        typeof body.errorMessageTemplate === 'string' &&      
+      213 +        body.errorMessageTemplate                             
+      214 +      ) {                                                     
+      215 +        form.errorMessageTemplate = body.errorMessageTemplate;
+      216 +        filled.push('错误消息');                              
+      217 +      }                                                       
+      218 +      const filledHint = filled.length > 0                    
+      219 +        ? `（已回写：${filled.join('、')}）`                  
+      220 +        : '';                                                 
+      221        if (body.validationErrors && body.validationErrors.lengt
+           h > 0) {
+      222          dslErrors.value = body.validationErrors;
+      196 -        aiHint.value = `生成成功但有 ${body.validationErrors.l
+          -ength} 项校验错误，请人工修正`;                               
+      223 +        aiHint.value =                                        
+      224 +          `生成成功但有 ${body.validationErrors.length} 项校验
+          +错误，请人工修正${filledHint}`;                               
+      225        } else {
+      198 -        aiHint.value = '生成成功，请人工复核 DSL 后保存';     
+      226 +        aiHint.value = `生成成功，请人工复核后保存${filledHint
+          +}`;                                                           
+      227        }
+      228      } else if (body.rawOutput) {
+      229        dslText.value = body.rawOutput;
+
+● 现在编译测试一遍。
+
+● Bash(cd backend && ./mvnw -q test -Dtest=RuleGeneratorServiceTest 2>&1 | tail
+      -60)
+  ⎿  /usr/bin/bash: line 1: ./mvnw: No such file or directory
+
+  Listed 1 directory (ctrl+o to expand)
+
+● PowerShell(Get-ChildItem backend -Name | Select-Object -First 20)
+  ⎿  Error: Exit code 1
+     Get-ChildItem : Cannot find path 
+     'F:\lf-workspace\DeepAudit\backend\backend' because it does not e
+     xist.
+     At line:1 char:1
+     + Get-ChildItem backend -Name | Select-Object -First 20
+     + ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         + CategoryInfo          : ObjectNotFound: 
+     (F:\lf-workspace...backend\backend:String) [Get-Chi 
+        ldItem], ItemNotFoundException
+         + FullyQualifiedErrorId : 
+     PathNotFound,Microsoft.PowerShell.Commands.GetChildItemCommand
+
+● PowerShell(Get-Location; Get-ChildItem -Name | Select-Object -First 30)
+  ⎿  (No output)
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● PowerShell(Get-ChildItem F:\lf-workspace\DeepAudit\backend -Name |
+            Select-Object -First 30)
+  ⎿  src
+     target
+     .dockerignore
+     … +2 lines (ctrl+o to expand)
+
+● PowerShell(mvn -v 2>&1 | Select-Object -First 5)
+  ⎿  Error: Exit code 1
+     mvn : The term 'mvn' is not recognized as the name of a cmdlet, function, 
+     script file, or operable
+      program. Check the spelling of the name, or if a path was included, verify
+      that the path is corre
+     ct and try again.
+     At line:1 char:1
+     + mvn -v 2>&1 | Select-Object -First 5
+     + ~~~
+         + CategoryInfo          : ObjectNotFound: (mvn:String) [], 
+     CommandNotFoundException
+         + FullyQualifiedErrorId : CommandNotFoundException
+
+● 环境里没有本地 maven 可用，跳过 mvn test，等你在 IDE 或 docker
+  构建里跑。逻辑核对完毕，改动汇总如下：
+
+  改动汇总
+
+  文件: backend/src/main/resources/prompts/rule_dsl_generator.system.txt
+  变更: 输出从裸 DSL 改为 wrapper（含
+    name/description/dimension/severity/errorMessageTemplate +
+    expression）；为每个字段加了取值指南；6 个示例全部用新格式重写
+  ────────────────────────────────────────
+  文件: backend/src/main/java/com/deepaudit/api/dto/NlRuleResponse.java
+  变更: record 新增 5 个 metadata 字段
+  ────────────────────────────────────────
+  文件: backend/src/main/java/com/deepaudit/service/RuleGeneratorService.java
+  变更: wrapper 解析；dimension/severity 枚举校验（非法则丢弃 + 报错）；保留裸 
+    DSL 向下兼容路径（无 expression 键则整体当 expression）；统一 error()
+    工厂构造 8 字段 record
+  ────────────────────────────────────────
+  文件:
+  backend/src/test/java/com/deepaudit/service/RuleGeneratorServiceTest.java
+  变更: 加 3 个新用例：wrapper 完整回写 / dimension 非法被丢 / severity
+    非法被丢；保留 bare DSL 兼容用例；其他用例改用新签名
+  ────────────────────────────────────────
+  文件: frontend/src/components/RuleEditorDrawer.vue
+  变更: generateDsl() 拿到响应后回写 5 个 form
+    字段（name/description/dimension/severity/errorMessageTemplate），AI
+    没给的字段保留用户原值；aiHint 末尾追加"已回写：名称、说明…"提示
+
+  关键设计决策
+
+  1. 覆盖策略：AI 给出非空字符串就直接覆盖表单已填值（用户主动点击「生成
+  DSL」即认可让 AI 改写）。空串 / null / 字段缺失则保持原值不动。
+  2. 枚举防御：dimension/severity 后端做白名单校验，非法值不进
+  response，前端不会把 dimension="bogus" 写入下拉框（避免 element-plus
+  显示空）。
+  3. 向下兼容：模型偶尔失忆吐回旧裸 DSL 格式时仍可用 —— 整体当
+  expression，metadata 全 null，前端 if (typeof body.X === 'string' && body.X)
+  自然不回写，不报错。
+  4. code 字段不动：AI 不输出 code，新建模式仍要求用户自己输入。
+
+  验证建议
+
+  测试一句："血费用大于 10 万提示" → 期望：
+
+  - 名称：~"费用上限提示"
+  - 说明：~"病案首页总费用超过 10 万…"
+  - 维度：logic
+  - 严重度：hint
+  - 错误消息模板：含 {{totalCost}}
+  - DSL：{"op":"lte","field":"totalCost","rhs":100000}
+
+  跑 mvn test -Dtest=RuleGeneratorServiceTest 看新测试通过即可上前端目视。
+
+✻ Brewed for 4m 6s
+
+❯ 推送                                                                          
+
+● Bash(git status && echo "---DIFF STAT---" && git diff --stat)
+  ⎿  On branch main
+     Your branch is up to date with 'origin/main'.
+     … +24 lines (ctrl+o to expand)
+
+● Bash(git add backend/src/main/java/com/deepaudit/api/dto/NlRuleResponse.java
+      backend/src/main/java/com/deepaudit/service/RuleGeneratorService.java
+      backend/src/main/r…)
+  ⎿  Error: Exit code 128
+     fatal: pathspec 
+     'backend/src/main/java/com/deepaudit/api/dto/NlRuleResponse.java' did not 
+     match any files
+
+● Bash(git -C F:/lf-workspace/DeepAudit add
+      backend/src/main/java/com/deepaudit/api/dto/NlRuleResponse.java
+      backend/src/main/java/com/deepaudit/service/RuleGeneratorSe…)
+  ⎿  warning: in the working copy of 'backend/src/main/java/com/deepaudit/a
+     pi/dto/NlRuleResponse.java', LF will be replaced by CRLF the next time
+      Git touches it
+     … +13 lines (ctrl+o to expand)
+
+● Bash(git -C F:/lf-workspace/DeepAudit push origin main 2>&1)
+  ⎿  Error: Exit code 128
+     fatal: Unable to persist credentials with the 'wincredman' credential 
+     store.
+     See https://aka.ms/gcm/credstores for more information.
+     bash: line 1: /dev/tty: No such device or address
+     error: failed to execute prompt script (exit code 1)
+     fatal: could not read Username for 'https://github.com': No such file or 
+     directory
+
+● bash 没有 tty 取不到 GitHub 凭据。用 PowerShell 试。
+
+● PowerShell(git -C F:\lf-workspace\DeepAudit push origin main 2>&1)  ⎿  Interrupted · What should Claude do instead?
+
+❯ 读取项目下面的.token密钥并推送                                                
+
+● PowerShell(Get-ChildItem F:\lf-workspace\DeepAudit -Filter ".token*" -Force
+            -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
+            -First 5)
+  ⎿  (No output)
+
+● PowerShell(Get-ChildItem F:\lf-workspace\DeepAudit -Force | Where-Object {
+            $_.Name -like "*token*" -or $_.Name -like ".env*" } | Select-Object
+            Name, FullName)
+  ⎿  (No output)
+
+● PowerShell(Get-ChildItem F:\lf-workspace\DeepAudit -Force | Format-Table
+            Mode,Name -AutoSize)
+  ⎿  Mode   Name
+     ----   ----
+     d----- .claude
+     … +17 lines (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+● PowerShell(git -C F:\lf-workspace\DeepAudit check-ignore -v .token .env 2>&1)
+  ⎿  .gitignore:14:*.token      .token
+     .gitignore:8:.env  .env
+
+● PowerShell($token = (Get-Content F:\lf-workspace\DeepAudit\.token
+            -Raw).Trim(); $url =
+            "https://x-access-token:$token@github.com/Llffan/DeepAudit.git"; git
+             -C F:\lf-worksp…)
+  ⎿  git : fatal: Unable to persist credentials with the 'wincredman' crede
+     ntial store.
+     At line:1 char:142
+     … +12 lines (ctrl+o to expand)
+
+● 已推送，c79f1ea..d3a8c01  main -> main。
+
+  前置的 wincredman 报错是 Git Credential Manager 想缓存这次的临时 URL 但
+  wincredman 凭据库不可用 —— 只是噪声警告，紧随其后的 main -> main
+  表明实际推送成功。
+
+  可以确认下：
+
+● Bash(git -C F:/lf-workspace/DeepAudit log --oneline origin/main -3 && echo
+      "---" && git -C F:/lf-workspace/DeepAudit status)
+  ⎿  c79f1ea 调用大模型配置API KEY
+     810831f 修复test
+     95cbc92 feat(phase-2): NL->Rule LLM endpoint + AI 写规则 UI (T2.5)
+     … +6 lines (ctrl+o to expand)
+  ⎿  Interrupted · What should Claude do instead?
+
+❯ continue                                                                      
+
+● git status 还显示领先 1 个 commit —— 是因为我用临时 URL 推送，没更新 origin
+  的远端引用。fetch 一下确认。
+
+● Bash(git -C F:/lf-workspace/DeepAudit fetch origin && git -C
+      F:/lf-workspace/DeepAudit log --oneline origin/main -3 && echo "---" &&
+      git -C F:/lf-workspace/DeepAudit…)
+  ⎿  From https://github.com/Llffan/DeepAudit
+        c79f1ea..d3a8c01  main       -> origin/main
+     d3a8c01 feat(phase-2): NL→Rule 大模型回写规则全量字段
+     … +7 lines (ctrl+o to expand)
+
+● 确认完成：
+
+  - 远端 origin/main 已包含 d3a8c01 feat(phase-2): NL→Rule 
+  大模型回写规则全量字段
+  - 本地与 origin/main 同步，工作区干净
+
+  推送成功，T2.5 的 metadata 全量回写功能已落到远端。
+
+✻ Worked for 11s
+
+❯ 2026-05-04T15:55:07.142+08:00  WARN 3768 --- [deepaudit-backend]              
+  [nio-8080-exec-3] c.d.service.RuleGeneratorService         : LLM call failed  
+  for input '年龄小于0逻辑性扣分': Value for the variable 'operationDate' is    
+  missing                                                                       
+
+● 这是 langchain4j 的模板引擎把 prompt 里的 {{operationDate}}
+  当成变量占位符要注入了 —— 我在 errorMessageTemplate 示例里写的 {{xxx}}
+  全被当成 mustache 变量。
+
+  先确认现有规则用的是哪种占位符语法。
+
+  Searched for 10 patterns, read 2 files (ctrl+o to expand)
+
+● 确认了：现有规则的 errorMessageTemplate 用 mustache 双花括号 {{xxx}}（V1
+  schema 第 220、234 行），项目约定不能改。所以问题在 langchain4j ——
+  @SystemMessage(fromResource=...) 的 prompt 会过 PromptTemplate 引擎，把
+  {{operationDate}} 等示例当变量，没值就抛 missing。
+
+  修复方案：绕开 AiServices 的模板渲染，改用 ChatLanguageModel 直接调用，把
+  system prompt 当字面文本传。两个文件改动。
+
+● Write(backend\src\main\java\com\deepaudit\service\RuleDslGenerator.java)
+  ⎿  Added 14 lines, removed 13 lines
+       1  package com.deepaudit.service;
+       2  
+       3 -import dev.langchain4j.service.SystemMessage;                  
+       4 -                                                               
+       3  /**
+       6 - * langchain4j {@code AiService} interface for translating a na
+         -tural-                                                         
+       7 - * language rule description into a DSL JSON tree (T2.5 / plan 
+         -§8.3).                                                         
+       4 + * Translates a natural-language rule description into a JSON D
+         +SL wrapper                                                     
+       5 + * (T2.5 / plan §8.3).                                         
+       6   *
+       9 - * <p>The system prompt lives in {@code resources/prompts/...} 
+         -so prompt                                                      
+      10 - * iteration is a text edit + restart, not a Java recompile. Th
+         -e                                                              
+      11 - * implementation is generated at runtime by {@code AiServices.
+         -builder}                                                       
+      12 - * and wired in {@link com.deepaudit.config.LlmAutoConfiguratio
+         -n}.                                                            
+       7 + * <p>Implementation lives in {@link com.deepaudit.config.LlmAu
+         +toConfiguration}.                                              
+       8 + * Note: this is intentionally <b>not</b> a langchain4j {@code 
+         +@AiService}                                                    
+       9 + * with {@code @SystemMessage(fromResource=...)} -- that path r
+         +uns the                                                        
+      10 + * prompt through {@code PromptTemplate}, which interprets the 
+      11 + * {@code {{fieldName}}} mustache placeholders inside our examp
+         +le                                                             
+      12 + * {@code errorMessageTemplate} strings as required variables a
+         +nd throws                                                      
+      13 + * "Value for the variable 'X' is missing". We instead build a 
+         +plain                                                          
+      14 + * {@code SystemMessage} from the raw resource text so the temp
+         +late                                                           
+      15 + * engine never sees it.                                       
+      16   *
+      14 - * <p>Returns a String (raw model output) -- {@link RuleGenerat
+         -orService}                                                     
+      15 - * is responsible for stripping accidental markdown code fences
+         -,                                                              
+      16 - * parsing JSON, and re-validating with T2.2 RuleDslValidator (
+         -R10                                                            
+      17 - * defense per plan §9).                                       
+      17 + * <p>{@link RuleGeneratorService} is responsible for stripping
+         + accidental                                                    
+      18 + * markdown code fences, parsing JSON, and re-validating with T
+         +2.2                                                            
+      19 + * RuleDslValidator (R10 defense per plan §9).                 
+      20   */
+      21  public interface RuleDslGenerator {
+      22  
+      21 -    @SystemMessage(fromResource = "/prompts/rule_dsl_generator.
+         -system.txt")                                                   
+      23      String generate(String naturalLanguage);
+      24  }
+
+● Write(backend\src\main\java\com\deepaudit\config\LlmAutoConfiguration.java)
+  ⎿  Added 42 lines, removed 10 lines
+       1  package com.deepaudit.config;
+       2  
+       3  import com.deepaudit.service.RuleDslGenerator;
+       4 +import dev.langchain4j.data.message.SystemMessage;             
+       5 +import dev.langchain4j.data.message.UserMessage;               
+       6  import dev.langchain4j.model.chat.ChatLanguageModel;
+       7  import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+       8  import dev.langchain4j.model.embedding.EmbeddingModel;
+       9  import dev.langchain4j.model.googleai.GoogleAiEmbeddingModel;
+      10  import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
+      11  import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingCh
+          atModel;
+      10 -import dev.langchain4j.service.AiServices;                     
+      12  import org.slf4j.Logger;
+      13  import org.slf4j.LoggerFactory;
+      14  import org.springframework.boot.ApplicationRunner;
+     ...
+      17  import org.springframework.boot.context.properties.EnableConfig
+          urationProperties;
+      18  import org.springframework.context.annotation.Bean;
+      19  import org.springframework.context.annotation.Configuration;
+      20 +import org.springframework.core.io.ClassPathResource;          
+      21 +import org.springframework.util.StreamUtils;                   
+      22  
+      23 +import java.io.IOException;                                    
+      24 +import java.io.InputStream;                                    
+      25 +import java.nio.charset.StandardCharsets;                      
+      26 +import java.util.List;                                         
+      27 +                                                               
+      28  /**
+      29   * Wires the three langchain4j model beans against Google AI Ge
+          mini
+      30   * (T2.4 / plan §3.6):
+     ...
+      51      private static final String API_KEY_PRESENT =
+      52          "'${deepaudit.llm.api-key:}' != ''";
+      53  
+      54 +    private static final String RULE_DSL_PROMPT_RESOURCE =     
+      55 +        "prompts/rule_dsl_generator.system.txt";               
+      56 +                                                               
+      57      @Bean
+      58      @ConditionalOnExpression(API_KEY_PRESENT)
+      59      public ChatLanguageModel chatLanguageModel(LlmProperties pr
+          ops) {
+     ...
+       87      }
+       88  
+       89      /**
+       79 -     * langchain4j-generated implementation of {@link RuleDslG
+          -enerator}                                                     
+       80 -     * (T2.5). Conditional on a real ChatLanguageModel being p
+          -resent, so                                                    
+       81 -     * a missing api-key drops the chain cleanly: no chat bean
+          - -> no                                                        
+       82 -     * generator bean -> RuleGeneratorService receives an empt
+          -y                                                             
+       83 -     * ObjectProvider and tells the UI the LLM is unavailable.
+       90 +     * Plain-text NL->DSL generator (T2.5).                   
+       91 +     *                                                        
+       92 +     * <p>We deliberately bypass {@code AiServices} + {@code @
+          +SystemMessage}                                                
+       93 +     * here. That path renders the prompt through langchain4j'
+          +s                                                             
+       94 +     * {@code PromptTemplate}, which treats every {@code {{nam
+          +e}}} in the                                                   
+       95 +     * prompt body as a required variable -- our example      
+       96 +     * {@code errorMessageTemplate} strings legitimately conta
+          +in                                                            
+       97 +     * {@code {{age}}}, {@code {{operationDate}}} etc. (matchi
+          +ng the                                                        
+       98 +     * production rule-message format used by R001/R002 in V1_
+          +_init_schema.sql),                                            
+       99 +     * and that triggered "Value for the variable 'X' is missi
+          +ng" at runtime.                                               
+      100 +     *                                                        
+      101 +     * <p>Reading the system prompt as a flat string and const
+          +ructing                                                       
+      102 +     * {@link SystemMessage} directly skips the template engin
+          +e entirely,                                                   
+      103 +     * so the placeholder syntax in the prompt is preserved ve
+          +rbatim and                                                    
+      104 +     * the model can use it in its own example output.        
+      105       */
+      106      @Bean
+      107      @ConditionalOnBean(ChatLanguageModel.class)
+       87 -    public RuleDslGenerator ruleDslGenerator(ChatLanguageModel
+          - chatModel) {                                                 
+       88 -        return AiServices.builder(RuleDslGenerator.class)     
+       89 -            .chatLanguageModel(chatModel)                     
+       90 -            .build();                                         
+      108 +    public RuleDslGenerator ruleDslGenerator(ChatLanguageModel
+          + chatModel) throws IOException {                              
+      109 +        String systemPrompt = loadResourceText(RULE_DSL_PROMPT
+          +_RESOURCE);                                                   
+      110 +        log.info("Loaded NL->DSL system prompt ({} chars) from
+          + {}",                                                         
+      111 +            systemPrompt.length(), RULE_DSL_PROMPT_RESOURCE); 
+      112 +                                                              
+      113 +        return naturalLanguage -> chatModel.generate(List.of( 
+      114 +            SystemMessage.from(systemPrompt),                 
+      115 +            UserMessage.from(naturalLanguage)                 
+      116 +        )).content().text();                                  
+      117      }
+      118  
+      119 +    private static String loadResourceText(String path) throws
+          + IOException {                                                
+      120 +        try (InputStream in = new ClassPathResource(path).getI
+          +nputStream()) {                                               
+      121 +            return StreamUtils.copyToString(in, StandardCharse
+          +ts.UTF_8);                                                    
+      122 +        }                                                     
+      123 +    }                                                         
+      124 +                                                              
+      125      /**
+      126       * Startup confirmation log. Always runs; the message tell
+           s the operator
+      127       * whether LLM-backed features will be active or in degrad
+           ed mode this boot.
+
+● 核对没遗漏：
+
+● Bash(cd F:/lf-workspace/DeepAudit && git diff --stat
+      backend/src/main/java/com/deepaudit/service/RuleDslGenerator.java
+      backend/src/main/java/com/deepaudit/config/Llm…)
+  ⎿  warning: in the working copy of 'backend/src/main/java/com/deepaudit/c
+     onfig/LlmAutoConfiguration.java', LF will be replaced by CRLF the next
+      time Git touches it
+     … +7 lines (ctrl+o to expand)
+
+● 修复说明
+
+  根因
+
+  langchain4j 的 @SystemMessage(fromResource=...) 注解会把 prompt 文件内容过
+  PromptTemplate.apply(variables)。这个引擎扫到任何 {{xxx}}
+  都当成"必需的待注入变量"。我在 prompt 例子里写的 {{age}} {{operationDate}}
+  {{lengthOfStay}} 等 —— 这些是 业务模板占位符（V1 schema 里 R001/R002 的
+  error_message_template 就是这种语法），不是给 langchain4j
+  注入的。generate(String naturalLanguage) 方法签名上没有 @V("operationDate")
+  参数提供值，引擎就抛了 Value for the variable 'operationDate' is missing。
+
+  改法
+
+  绕开 AiServices：
+  - RuleDslGenerator 改成普通接口，去掉 @SystemMessage 注解
+  - LlmAutoConfiguration.ruleDslGenerator() 启动时把 prompt
+  文件当字面字符串读出来，用 SystemMessage.from(rawText) +
+  UserMessage.from(naturalLanguage) 直接调 ChatLanguageModel.generate(messages)
+  —— 不经任何模板引擎，{{xxx}} 原样保留传给 Gemini
+
+  没受影响
+
+  - prompt 文件内容不变（占位符照用）
+  - RuleDslGenerator 接口签名不变 → RuleGeneratorService 调用方零改动
+  - RuleGeneratorServiceTest mock 在接口层 → 单测不受影响
+
+  重启后验证
+
+  重启后端再试 "年龄小于0逻辑性扣分"，应该能正常拿到 wrapper 输出。
+
+  要我也把这次修复 commit 推到远端吗？
+✻ Sautéed for 2m 40s
+
+❯ 推送                                                                          
+
+● Bash(git -C F:/lf-workspace/DeepAudit add
+      backend/src/main/java/com/deepaudit/service/RuleDslGenerator.java
+      backend/src/main/java/com/deepaudit/config/LlmAutoConfigu…)
+  ⎿  warning: in the working copy of 'backend/src/main/java/com/deepaudit/c
+     onfig/LlmAutoConfiguration.java', LF will be replaced by CRLF the next
+      time Git touches it
+     … +6 lines (ctrl+o to expand)
+
+● PowerShell($token = (Get-Content F:\lf-workspace\DeepAudit\.token
+            -Raw).Trim(); $url =
+            "https://x-access-token:$token@github.com/Llffan/DeepAudit.git"; git
+             -C F:\lf-worksp…)
+  ⎿  git : fatal: Unable to persist credentials with the 'wincredman' crede
+     ntial store.
+     At line:1 char:142
+     … +17 lines (ctrl+o to expand)
+
+● 推送成功，d3a8c01..063032e  main -> main。本地与 origin/main
+  同步，工作区干净。
+
+  wincredman 那两行红字仍是 Git Credential Manager 想缓存临时 URL
+  失败的噪声警告，不影响实际 push/fetch（紧随其后的 main -> main 和 main -> 
+  origin/main 表明都成了）。
+
+  修复已落到远端，重启后端即可重试 NL→Rule。
+
+✻ Brewed for 25s
+
+※ recap: 目标是完成 T2 阶段「AI 写规则」全字段回写，已把改动和 langchain4j 模板冲突修复都推到 origin/main。下一步：重启后端，测试 NL→Rule 端点验证 5 个 metadata 字段能正确回写到表单。 (disable recaps in /config)
+
+❯ 校验错误（1 项）：                                                            
+  LLM 调用失败：java.lang.RuntimeException: HTTP error (403): { "error": {      
+  "code": 403, "message": "Your API key was reported as leaked. Please use      
+  another API key.", "status": "PERMISSION_DENIED" } }这是什么意思？            
+
+● 意思是 Google AI 自动扫描发现你这把 Gemini API key 
+  已经泄漏到公开渠道（最常见就是 GitHub 
+  公开仓库），出于安全考虑直接吊销了。返回的不是限流也不是欠费，是永久 
+  PERMISSION_DENIED，再请求多少次都是 403。
+
+  排查泄漏面
+
+● Bash(cd F:/lf-workspace/DeepAudit && echo "=== .env (gitignored?) ===" && git
+      check-ignore -v .env 2>&1 && echo "" && echo "=== .env.example committed
+      content ===" &…)
+  ⎿  Interrupted · What should Claude do instead?
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+※ recap: 你在执行 DeepAudit 病案首页质控 MVP 的 T2.5：AI 写规则一并回写名称/说明/维度/严重度/错误消息模板五个 metadata 字段。代码改完已推送到 origin/main，下一步是重启后端验证 NL→Rule 端到端可用。 (disable recaps in /config)
+
+❯ 拉取仓库中的最新代码                                                          
+
+● PowerShell(git -C F:\lf-workspace\DeepAudit fetch origin 2>&1; git -C
+            F:\lf-workspace\DeepAudit pull --ff-only 2>&1; git -C
+            F:\lf-workspace\DeepAudit log --oneline -5)
+  ⎿  git : fatal: unable to access 'https://github.com/Llffan/DeepAudit.git
+     /': Failed to connect to git
+     hub.com port 443 after 21091 ms: Could not connect to server
+     … +20 lines (ctrl+o to expand)
+
+● 已拉取，快进 2 个 commit：
+
+  - 1668ca7 删除密钥 — 移除泄漏 key
+  - a994d9c 修改配置引入 — 调整配置注入方式
+
+  变更 5 个文件：.gitignore +2 行、两个 application*.yml 改注入方式、新增
+  docs/数据库/V1.md、前端自动生成的 components.d.ts。
+
+  第一次 fetch 是 GitHub 偶发连接超时，pull 那一次就通了。本地已同步到 a994d9c。
+
+  API key 这件事的处置进度：上游已经把泄漏的 key
+  从代码里删掉、调整了配置加载路径。你还需要在 Google AI Studio 
+  端做这两步才能恢复：
+
+  1. 进 AI Studio → API keys，把被吊销的那把 key
+  彻底删掉（保留它没用，已永久禁）
+  2. 新建一把 key，放进本地 .env（已 gitignore），不要再 commit 任何会写到
+  yml/代码里的位置
+
+  要不要我打开新拉下来的 application.yml 确认下现在 key 的注入方式，避免你新 key
+   配置时方向错？
+
+✻ Sautéed for 40s
