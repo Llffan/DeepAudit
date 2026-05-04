@@ -53,20 +53,19 @@ management:
 
 deepaudit:
   llm:
-    provider: dashscope
-    api-key: ${DASHSCOPE_API_KEY:}
-    chat-model: qwen-max
-    vision-model: qwen-vl-max
-    embedding-model: text-embedding-v3
+    # Gemini 2.5 Flash (T2.4): multimodal-native -- chat, NL->DSL, PDF page
+    # extraction, and violation explanation all share the same model.
+    # Embedding switches to text-embedding-004 (768 dim, see V2 migration).
+    # Beans are conditional on api-key being non-empty; missing key -> rule
+    # engine still runs, only LLM-dependent features (embedding fill, NL
+    # rule generation, error explanation) gracefully degrade.
+    provider: gemini
+    api-key: ${GEMINI_API_KEY:}
+    chat-model: gemini-2.5-flash
+    vision-model: gemini-2.5-flash
+    embedding-model: text-embedding-004
     timeout-seconds: 60
     max-retries: 2
-
-dashscope:
-  data-improvement:
-    # C-regulatory-002: this app's policy. The console toggle MUST be OFF.
-    # If env DASHSCOPE_DATA_IMPROVEMENT=on, the startup guard logs WARN.
-    allowed: false
-    detected-state: ${DASHSCOPE_DATA_IMPROVEMENT:off}
 
 logging:
   level:

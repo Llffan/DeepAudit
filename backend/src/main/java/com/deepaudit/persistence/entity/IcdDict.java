@@ -44,7 +44,7 @@ public class IcdDict {
     private String version;
 
     @Type(VectorUserType.class)
-    @Column(name = "name_embedding", columnDefinition = "vector(1024)")
+    @Column(name = "name_embedding", columnDefinition = "vector(768)")
     private float[] nameEmbedding;
 
     @Column(name = "created_at", nullable = false)

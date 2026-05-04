@@ -35,8 +35,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/deepaudit
       SPRING_DATASOURCE_USERNAME: deepaudit
       SPRING_DATASOURCE_PASSWORD: deepaudit
-      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
-      DASHSCOPE_DATA_IMPROVEMENT: ${DASHSCOPE_DATA_IMPROVEMENT:-off}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
     expose:
       - "8080"

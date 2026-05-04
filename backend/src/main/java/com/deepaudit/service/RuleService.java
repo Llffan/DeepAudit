@@ -10,6 +10,8 @@ import com.deepaudit.engine.RuleDslValidator.ValidationResult;
 import com.deepaudit.persistence.entity.QcRule;
 import com.deepaudit.persistence.repository.QcRuleRepository;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +19,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -24,13 +27,16 @@ import java.util.Set;
  * raises domain exceptions, and routes every persisted DSL through
  * {@link RuleDslValidator} so the evaluator never sees malformed input.
  *
- * <p>The {@code description_embedding} column stays {@code NULL} here
- * by design -- it is filled in by the embedding pipeline (T2.4) once
- * the langchain4j {@code EmbeddingModel} bean is wired. Adding the call
- * here later is a one-line change.
+ * <p>{@code description_embedding} is filled best-effort via
+ * {@link EmbeddingService}: when the embedding model bean is absent
+ * (no GEMINI_API_KEY) or the call fails, the rule is still saved with
+ * a NULL embedding. Similarity-based dedup (plan §5.5) silently skips
+ * rules without embeddings.
  */
 @Service
 public class RuleService {
+
+    private static final Logger log = LoggerFactory.getLogger(RuleService.class);
 
     private static final Set<String> DIMENSIONS =
         Set.of("completeness", "logic", "standardization", "consistency");
@@ -39,10 +45,14 @@ public class RuleService {
 
     private final QcRuleRepository ruleRepo;
     private final RuleDslValidator dslValidator;
+    private final EmbeddingService embeddingService;
 
-    public RuleService(QcRuleRepository ruleRepo, RuleDslValidator dslValidator) {
+    public RuleService(QcRuleRepository ruleRepo,
+                       RuleDslValidator dslValidator,
+                       EmbeddingService embeddingService) {
         this.ruleRepo = ruleRepo;
         this.dslValidator = dslValidator;
+        this.embeddingService = embeddingService;
     }
 
     @Transactional
@@ -61,6 +71,7 @@ public class RuleService {
             req.errorMessageTemplate(), req.enabled(),
             req.effectiveFrom(), req.effectiveTo());
 
+        fillEmbedding(rule);
         return ruleRepo.save(rule);
     }
 
@@ -74,11 +85,18 @@ public class RuleService {
         QcRule rule = ruleRepo.findById(id).orElseThrow(() ->
             new NotFoundException("规则不存在：id=" + id));
 
+        String oldCorpus = corpusFor(rule);
         applyToEntity(rule, rule.getCode(), req.name(), req.description(),
             req.dimension(), req.severity(), req.expression(),
             req.errorMessageTemplate(), req.enabled(),
             req.effectiveFrom(), req.effectiveTo());
 
+        // Re-embed only when name or description changed; embedding is the
+        // expensive call on the write path (~150ms typical) and rule
+        // metadata edits without semantic-text changes don't need it.
+        if (!Objects.equals(oldCorpus, corpusFor(rule))) {
+            fillEmbedding(rule);
+        }
         return ruleRepo.save(rule);
     }
 
@@ -142,6 +160,31 @@ public class RuleService {
         if (!errors.isEmpty()) {
             throw new ValidationException(errors);
         }
+    }
+
+    private void fillEmbedding(QcRule rule) {
+        String corpus = corpusFor(rule);
+        if (corpus.isBlank()) {
+            return;
+        }
+        float[] vec = embeddingService.embed(corpus);
+        if (vec != null) {
+            rule.setDescriptionEmbedding(vec);
+        }
+        // null result already logged inside EmbeddingService -- silently skip here.
+    }
+
+    private static String corpusFor(QcRule rule) {
+        // Embedding source = name + description. Mirrors plan §5.5 dedup
+        // intent (compare rules by what they semantically check, which lives
+        // in name + free-text description, NOT the structural DSL tree).
+        StringBuilder sb = new StringBuilder();
+        if (rule.getName() != null) sb.append(rule.getName());
+        if (rule.getDescription() != null) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(rule.getDescription());
+        }
+        return sb.toString();
     }
 
     private static void applyToEntity(QcRule rule, String code, String name,

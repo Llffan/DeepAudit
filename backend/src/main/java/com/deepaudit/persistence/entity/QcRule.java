@@ -69,7 +69,7 @@ public class QcRule {
     private LocalDate effectiveTo;
 
     @Type(VectorUserType.class)
-    @Column(name = "description_embedding", columnDefinition = "vector(1024)")
+    @Column(name = "description_embedding", columnDefinition = "vector(768)")
     private float[] descriptionEmbedding;
 
     @Column(name = "created_at", nullable = false)

@@ -80,7 +80,12 @@
             <version>${postgresql.version}</version>
         </dependency>
 
-        <!-- langchain4j (declared; bean wiring deferred to Phase 1 per plan scope) -->
+        <!-- langchain4j core + Google AI Gemini integration (T2.4).
+             Replaces langchain4j-dashscope; the Gemini 2.5 Flash family
+             is multimodal-native, so the same chat model serves both
+             text (NL->DSL, error explanation) and image (PDF page)
+             call sites without a separate vision model. Embedding
+             switches to text-embedding-004 (768 dim, see V2 migration). -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j</artifactId>
@@ -88,7 +93,7 @@
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-dashscope</artifactId>
+            <artifactId>langchain4j-google-ai-gemini</artifactId>
             <version>${langchain4j.version}</version>
         </dependency>
 

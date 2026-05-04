@@ -40,13 +40,19 @@ class RuleServiceTest {
 
     private QcRuleRepository ruleRepo;
     private RuleDslValidator validator;
+    private EmbeddingService embeddingService;
     private RuleService service;
 
     @BeforeEach
     void setUp() {
         ruleRepo = mock(QcRuleRepository.class);
         validator = new RuleDslValidator();
-        service = new RuleService(ruleRepo, validator);
+        embeddingService = mock(EmbeddingService.class);
+        // Default mock returns null = "no embedding produced", which is the
+        // gracefully-degraded path when GEMINI_API_KEY is absent. Tests that
+        // exercise the embedding write path override this stub explicitly.
+        when(embeddingService.embed(any())).thenReturn(null);
+        service = new RuleService(ruleRepo, validator, embeddingService);
     }
 
     private static JsonNode dsl(String json) throws Exception {
@@ -115,6 +121,38 @@ class RuleServiceTest {
         assertEquals("logic", saved.getDimension());
         assertEquals("hint", saved.getSeverity());
         assertFalse(saved.getEnabled(), "enabled=false should propagate from request");
+        verify(ruleRepo).save(any());
+    }
+
+    @Test
+    @DisplayName("create writes embedding when EmbeddingService returns a vector")
+    void create_writes_embedding_when_available() throws Exception {
+        when(ruleRepo.findByCode("R003")).thenReturn(Optional.empty());
+        when(ruleRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        float[] vec = new float[768];
+        vec[0] = 0.42f;
+        when(embeddingService.embed(any())).thenReturn(vec);
+
+        var req = validCreateReq("R003", dsl("{\"op\":\"notNull\",\"field\":\"age\"}"));
+        QcRule saved = service.create(req);
+
+        assertNotNull(saved.getDescriptionEmbedding(), "embedding should be filled when service returns a vector");
+        assertEquals(768, saved.getDescriptionEmbedding().length);
+        assertEquals(0.42f, saved.getDescriptionEmbedding()[0], 0.0001f);
+    }
+
+    @Test
+    @DisplayName("create persists rule with NULL embedding when EmbeddingService unavailable")
+    void create_proceeds_without_embedding_when_service_unavailable() throws Exception {
+        // Default stub returns null -- simulating missing GEMINI_API_KEY.
+        when(ruleRepo.findByCode("R003")).thenReturn(Optional.empty());
+        when(ruleRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var req = validCreateReq("R003", dsl("{\"op\":\"notNull\",\"field\":\"age\"}"));
+        QcRule saved = service.create(req);
+
+        assertNull(saved.getDescriptionEmbedding(),
+            "embedding should be null and the rule should still persist");
         verify(ruleRepo).save(any());
     }
 
