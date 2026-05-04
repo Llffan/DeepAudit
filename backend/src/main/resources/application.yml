@@ -6,6 +6,10 @@ server:
 spring:
   application:
     name: deepaudit-backend
+  config:
+    import:
+      - optional:application-docker.yml
+      - optional:application-prod.yml
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/deepaudit}
     username: ${SPRING_DATASOURCE_USERNAME:deepaudit}
@@ -49,7 +53,7 @@ management:
         enabled: true
   health:
     db:
-      enabled: true   # surfaces JDBC SELECT 1 in actuator/health (Goal success criterion #3)
+      enabled: true # surfaces JDBC SELECT 1 in actuator/health (Goal success criterion #3)
 
 deepaudit:
   llm:
@@ -60,7 +64,7 @@ deepaudit:
     # engine still runs, only LLM-dependent features (embedding fill, NL
     # rule generation, error explanation) gracefully degrade.
     provider: gemini
-    api-key: ${GEMINI_API_KEY:AIzaSyBnV8AtG_mDU-f_oe3O0vQ7qlrtYS35Uhk}
+    api-key: ${GEMINI_API_KEY:}
     chat-model: gemini-2.5-flash
     vision-model: gemini-2.5-flash
     embedding-model: text-embedding-004

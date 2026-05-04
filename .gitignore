@@ -8,6 +8,8 @@
 .env
 .env.local
 .env.*.local
+backend/src/main/resources/application-prod.yml
+backend/src/main/resources/application-docker.yml
 *.pem
 *.key
 .token
