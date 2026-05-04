@@ -60,7 +60,7 @@ deepaudit:
     # engine still runs, only LLM-dependent features (embedding fill, NL
     # rule generation, error explanation) gracefully degrade.
     provider: gemini
-    api-key: ${GEMINI_API_KEY:}
+    api-key: ${GEMINI_API_KEY:AIzaSyBnV8AtG_mDU-f_oe3O0vQ7qlrtYS35Uhk}
     chat-model: gemini-2.5-flash
     vision-model: gemini-2.5-flash
     embedding-model: text-embedding-004
