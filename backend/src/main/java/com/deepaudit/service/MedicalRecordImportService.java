@@ -3,6 +3,7 @@ package com.deepaudit.service;
 import com.deepaudit.api.dto.MedicalRecordImportResponse;
 import com.deepaudit.api.exception.ValidationException;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.slf4j.Logger;
@@ -80,7 +81,7 @@ public class MedicalRecordImportService {
         // From here on, any failure should NOT be a hard error — the PDF
         // has been persisted and the user can still edit fields manually.
         String pdfText;
-        try (PDDocument doc = PDDocument.load(bytes)) {
+        try (PDDocument doc = Loader.loadPDF(bytes)) {
             pdfText = new PDFTextStripper().getText(doc);
         } catch (IOException e) {
             log.warn("PDF text extraction failed for {}: {}", stored.relativePath(), e.toString());
