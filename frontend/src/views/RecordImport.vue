@@ -524,12 +524,12 @@ function buildPrintHtml(r: MedicalRecord): string {
 <meta charset="UTF-8">
 <title>住院病案首页 ${escapeHtml(r.recordNo)}</title>
 <style>
-  body { font-family: 'SimSun', '宋体', serif; color: #000; padding: 12px; font-size: 12px; line-height: 1.4; }
-  h1 { font-size: 18px; text-align: center; margin: 0 0 16px; letter-spacing: 4px; }
+  body { font-family: 'SimSun', '宋体', serif; color: #000; padding: 12px; font-size: 10px; line-height: 1.25; }
+  h1 { font-size: 14px; text-align: center; margin: 0 0 10px; letter-spacing: 3px; }
   /* 区块标题已按需求移除，所有 <table> 上下直接拼接，靠 1px 黑线区分 */
   table { width: 100%; border-collapse: collapse; margin-bottom: 0; border-top: none; table-layout: auto; }
   table + table { margin-top: -1px; }      /* 相邻 table 共享一条黑线，视觉上形成连续表格 */
-  th, td { border: 1px solid #000; padding: 3px 5px; vertical-align: middle; height: 22px; }
+  th, td { border: 1px solid #000; padding: 2px 4px; vertical-align: middle; height: 18px; }
   th { font-weight: 600; background: #fff; text-align: left; }
   thead th { text-align: center; }
 
@@ -542,16 +542,16 @@ function buildPrintHtml(r: MedicalRecord): string {
     text-overflow: ellipsis;
   }
   table.grid th {
-    padding: 3px 4px;
+    padding: 2px 3px;
   }
   table.grid td {
-    padding: 3px 5px;
+    padding: 2px 4px;
   }
 
   /* 诊断网格：4 列按内容长短分配（出院诊断 40% / 疾病编码 20% / 入院病情 20% / 出院情况 20%） */
   table.diag { table-layout: fixed; }
   table.diag th, table.diag td {
-    text-align: left; padding: 4px 6px;
+    text-align: left; padding: 2px 4px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   table.diag th:nth-child(1), table.diag td:nth-child(1) { width: 40%; }
@@ -561,11 +561,11 @@ function buildPrintHtml(r: MedicalRecord): string {
   table.diag thead th { text-align: center; background: #f5f5f5; font-weight: 600; }
 
   /* 字典脚注：紧贴诊断网格下方，无外框、左右两列 */
-  table.legend { border: none; margin-top: 4px; }
-  table.legend td { border: none; padding: 2px 6px; font-size: 11px; color: #333; width: 50%; height: auto; }
+  table.legend { border: none; margin-top: 3px; }
+  table.legend td { border: none; padding: 1px 4px; font-size: 9px; color: #333; width: 50%; height: auto; }
   @media print {
     body { padding: 0; }
-    h1 { margin-bottom: 12px; }
+    h1 { margin-bottom: 8px; }
   }
 </style>
 </head>
