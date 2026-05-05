@@ -1507,6 +1507,12 @@ watch(
   line-height: 1.3;
   white-space: nowrap;         /* 字段名不换行：长字段如"工作单位及地址"保持单行显示 */
 }
+/* 非首列：标签按自身内容收缩、紧贴输入框；
+   首列保留 label-width="auto" 计算出的统一宽度以维持纵向对齐。 */
+.record-form :deep(.el-row > .el-col:not(:first-child) .el-form-item__label) {
+  width: auto !important;
+  min-width: 0 !important;
+}
 
 .actions {
   position: sticky;
