@@ -751,7 +751,6 @@ watch(
       :model="form"
       :rules="rules"
       label-position="left"
-      label-width="auto"
       class="record-form"
     >
       <!-- 病案号 + 来源医院（必填头，固定在 14 行布局之前） -->
@@ -1506,11 +1505,22 @@ watch(
 .record-form :deep(.el-form-item__label) {
   font-size: 0.85rem;
   color: #555;
-  padding-right: 10px;         /* label 与输入框固定 10px 间距 */
-  line-height: 36px;           /* 与输入框等高：标签垂直居中在行中 */
-  white-space: nowrap;         /* 字段名不换行：长字段如"工作单位及地址"保持单行显示 */
-  width: auto !important;      /* 覆盖 label-width="auto" 的对齐计算，按内容收缩 */
-  flex: 0 0 auto;              /* 不伸缩，让输入框紧贴标签右侧 */
+  padding: 0 10px 0 0 !important;  /* 标签到输入框固定 10px，禁掉 EP 默认 padding */
+  margin: 0 !important;
+  line-height: 36px;               /* 与输入框等高：标签垂直居中在行中 */
+  white-space: nowrap;             /* 字段名不换行 */
+  width: auto !important;          /* 按自身内容收缩，不和别人对齐 */
+  min-width: 0 !important;
+  max-width: none !important;
+  flex: 0 0 auto !important;       /* 不伸缩，输入框紧贴标签右侧 */
+}
+.record-form :deep(.el-form-item__content) {
+  margin-left: 0 !important;       /* 避免 EP 残留的 margin-left 把输入框推开 */
+  flex: 1 1 auto;
+}
+.record-form :deep(.el-form-item) {
+  display: flex;
+  align-items: center;
 }
 
 .actions {
