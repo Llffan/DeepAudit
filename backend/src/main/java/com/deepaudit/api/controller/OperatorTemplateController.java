@@ -5,6 +5,7 @@ import com.deepaudit.api.exception.ValidationException;
 import com.deepaudit.engine.CustomOperatorRegistry;
 import com.deepaudit.persistence.entity.QcOperatorTemplate;
 import com.deepaudit.persistence.repository.QcOperatorTemplateRepository;
+import com.deepaudit.service.OperatorGeneratorService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -41,11 +42,14 @@ public class OperatorTemplateController {
 
     private final QcOperatorTemplateRepository repository;
     private final CustomOperatorRegistry registry;
+    private final OperatorGeneratorService generatorService;
 
     public OperatorTemplateController(QcOperatorTemplateRepository repository,
-                                      CustomOperatorRegistry registry) {
+                                      CustomOperatorRegistry registry,
+                                      OperatorGeneratorService generatorService) {
         this.repository = repository;
         this.registry = registry;
+        this.generatorService = generatorService;
     }
 
     public record TemplateRequest(
@@ -54,6 +58,18 @@ public class OperatorTemplateController {
         String description,
         List<String> parameterNames,
         JsonNode bodyDsl
+    ) {}
+
+    public record GenerateRequest(
+        List<String> parameterNames,
+        String description
+    ) {}
+
+    public record GenerateResponse(
+        JsonNode bodyDsl,
+        List<String> errors,
+        String rawOutput,
+        boolean ok
     ) {}
 
     public record TemplateDto(
@@ -108,6 +124,18 @@ public class OperatorTemplateController {
         repository.deleteById(id);
         registry.reload();
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 让 LLM 根据"参数列表 + 自然语言说明"推荐一段 bodyDsl。前端在抽屉里
+     * 选好参数和填好说明后调用此端点，把返回的 JSON 写入 body_dsl 编辑器。
+     * 不落库 —— 用户可在编辑器里改完再点保存走 POST /operators。
+     */
+    @PostMapping("/generate-body-dsl")
+    public GenerateResponse generateBodyDsl(@RequestBody GenerateRequest req) {
+        OperatorGeneratorService.Response r = generatorService.generate(
+            req.parameterNames(), req.description());
+        return new GenerateResponse(r.bodyDsl(), r.errors(), r.rawOutput(), r.ok());
     }
 
     // -------------------------------------------------------------------------

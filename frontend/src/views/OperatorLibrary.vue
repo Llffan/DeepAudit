@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, Delete, Switch, Cpu } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, Switch, Cpu, MagicStick } from '@element-plus/icons-vue'
 
 interface OperatorTemplate {
   id: number
@@ -14,6 +14,101 @@ interface OperatorTemplate {
   createdAt: string | null
   updatedAt: string | null
 }
+
+// 病案对象可用作算子参数的字段（与后端 FieldAccessor 白名单一致）。
+// 分组方便在下拉里快速定位；value 是 camelCase 字段名，label 是中文展示。
+interface FieldOption { value: string; label: string }
+interface FieldGroup  { group: string; options: FieldOption[] }
+const FIELD_GROUPS: FieldGroup[] = [
+  { group: '基本信息', options: [
+    { value: 'recordNo',     label: '病案号' },
+    { value: 'name',         label: '姓名' },
+    { value: 'gender',       label: '性别' },
+    { value: 'birthDate',    label: '出生日期' },
+    { value: 'age',          label: '年龄' },
+    { value: 'idCardMasked', label: '证件号' },
+    { value: 'idCardType',   label: '证件类型' },
+    { value: 'nationality',  label: '国籍' },
+    { value: 'ethnicity',    label: '民族' },
+    { value: 'maritalStatus',label: '婚姻' },
+    { value: 'occupation',   label: '职业' },
+    { value: 'birthPlace',   label: '出生地' },
+    { value: 'nativePlace',  label: '籍贯' },
+    { value: 'ageDays',      label: '(不足1岁的)年龄(天)' },
+    { value: 'newbornBirthWeight',     label: '新生儿出生体重 (g)' },
+    { value: 'newbornAdmissionWeight', label: '新生儿入院体重 (g)' },
+  ]},
+  { group: '住址与联系', options: [
+    { value: 'currentAddress',    label: '现住址' },
+    { value: 'currentPhone',      label: '电话' },
+    { value: 'currentZip',        label: '邮编' },
+    { value: 'registeredAddress', label: '户口地址' },
+    { value: 'registeredZip',     label: '户口邮编' },
+    { value: 'workplace',         label: '工作单位及地址' },
+    { value: 'workPhone',         label: '单位电话' },
+    { value: 'workZip',           label: '单位邮编' },
+    { value: 'contactName',       label: '联系人姓名' },
+    { value: 'contactRelation',   label: '联系人关系' },
+    { value: 'contactAddress',    label: '联系人地址' },
+    { value: 'contactPhone',      label: '联系人电话' },
+  ]},
+  { group: '入出院', options: [
+    { value: 'admissionDate',  label: '入院时间' },
+    { value: 'dischargeDate',  label: '出院时间' },
+    { value: 'lengthOfStay',   label: '实际住院(天)' },
+    { value: 'admissionDept',  label: '入院科别' },
+    { value: 'dischargeDept',  label: '出院科别' },
+    { value: 'admissionRoute', label: '入院途径' },
+    { value: 'dischargeStatus',label: '离院方式' },
+    { value: 'admissionWard',  label: '入院病房' },
+    { value: 'dischargeWard',  label: '出院病房' },
+    { value: 'specialtyDept',  label: '转科科别' },
+  ]},
+  { group: '门急诊与诊断', options: [
+    { value: 'outpatientDiagnosis',          label: '门(急)诊诊断' },
+    { value: 'outpatientDiagnosisCode',      label: '门(急)诊疾病编码' },
+    { value: 'outpatientAdmissionCondition', label: '门(急)诊入院情况' },
+    { value: 'confirmedAfterAdmissionDate',  label: '入院后确诊日期' },
+    { value: 'mainDiagnosisCode',            label: '主诊编码' },
+    { value: 'mainDiagnosisName',            label: '主诊名称' },
+    { value: 'mainDiagnosisIcdVer',          label: '主诊 ICD 版本' },
+    { value: 'mainAdmissionCondition',       label: '主诊入院病情' },
+    { value: 'mainDischargeCondition',       label: '主诊出院情况' },
+    { value: 'mainNote',                     label: '主诊备注' },
+    { value: 'otherDiagnosisCount',          label: '其他诊断数' },
+  ]},
+  { group: 'V9 补充字段', options: [
+    { value: 'injuryPoisoningCause',      label: '损伤、中毒外因' },
+    { value: 'injuryPoisoningCode',       label: '损伤、中毒编码' },
+    { value: 'pathologicalDiagnosis',     label: '病理诊断' },
+    { value: 'pathologicalDiagnosisCode', label: '病理编码' },
+    { value: 'pathologyNumber',           label: '病理号' },
+    { value: 'drugAllergy',               label: '药物过敏' },
+    { value: 'allergyDrugs',              label: '过敏药物' },
+    { value: 'autopsy',                   label: '死亡患者尸检' },
+    { value: 'bloodType',                 label: '血型' },
+    { value: 'rhBloodType',               label: 'Rh' },
+    { value: 'departmentDirector',        label: '科主任' },
+    { value: 'chiefPhysician',            label: '主(副主)任医生' },
+    { value: 'attendingPhysician',        label: '主治医生' },
+    { value: 'residentPhysician',         label: '住院医生' },
+    { value: 'responsibleNurse',          label: '责任护士' },
+    { value: 'traineePhysician',          label: '进修医生' },
+    { value: 'internPhysician',           label: '实习医生' },
+    { value: 'coder',                     label: '编码员' },
+    { value: 'recordQuality',             label: '病案质量' },
+    { value: 'qcPhysician',               label: '质控医师' },
+    { value: 'qcNurse',                   label: '质控护士' },
+    { value: 'qcDate',                    label: '质控日期' },
+  ]},
+  { group: '元信息', options: [
+    { value: 'sourceHospital',       label: '来源医院' },
+    { value: 'extractionConfidence', label: '抽取置信度' },
+  ]},
+]
+const FIELD_LABEL: Record<string, string> = Object.fromEntries(
+  FIELD_GROUPS.flatMap(g => g.options.map(o => [o.value, o.label] as const))
+)
 
 const BUILTIN_OPS = [
   { op: 'notNull',      kind: '布尔', params: 'field',                desc: '字段不为空' },
@@ -46,8 +141,6 @@ const form = ref({
   bodyDslText: '',
 })
 
-const paramInput = ref('')
-
 async function load() {
   const res = await fetch('/api/operators')
   templates.value = (await res.json()) as OperatorTemplate[]
@@ -73,18 +166,6 @@ function openEdit(t: OperatorTemplate) {
     bodyDslText: JSON.stringify(t.bodyDsl, null, 2),
   }
   drawerVisible.value = true
-}
-
-function addParam() {
-  const p = paramInput.value.trim()
-  if (p && !form.value.parameterNames.includes(p)) {
-    form.value.parameterNames.push(p)
-  }
-  paramInput.value = ''
-}
-
-function removeParam(p: string) {
-  form.value.parameterNames = form.value.parameterNames.filter(x => x !== p)
 }
 
 async function save() {
@@ -120,6 +201,54 @@ async function save() {
     await load()
   } finally {
     saving.value = false
+  }
+}
+
+const generating = ref(false)
+
+async function generateBodyDsl() {
+  if (form.value.parameterNames.length === 0) {
+    ElMessage.warning('请先在上方选好参数列表')
+    return
+  }
+  if (!form.value.description.trim()) {
+    ElMessage.warning('请先填写说明，AI 需要理解算子要校验什么')
+    return
+  }
+  generating.value = true
+  try {
+    const res = await fetch('/api/operators/generate-body-dsl', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        parameterNames: form.value.parameterNames,
+        description: form.value.description,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      ElMessage.error((err as { message?: string }).message ?? `HTTP ${res.status}`)
+      return
+    }
+    const data = (await res.json()) as {
+      bodyDsl: unknown
+      errors: string[]
+      rawOutput: string | null
+      ok: boolean
+    }
+    if (!data.ok || !data.bodyDsl) {
+      ElMessage.error(data.errors?.[0] ?? 'AI 生成失败')
+      return
+    }
+    form.value.bodyDslText = JSON.stringify(data.bodyDsl, null, 2)
+    if (data.errors && data.errors.length > 0) {
+      // 非致命警告（比如 $ref 引用了列表外的参数）—— 已经填进编辑器，提示用户复核
+      ElMessage.warning(`AI 已生成，但有 ${data.errors.length} 条提示，请复核`)
+    } else {
+      ElMessage.success('AI 已生成 bodyDsl，请复核后保存')
+    }
+  } finally {
+    generating.value = false
   }
 }
 
@@ -204,7 +333,8 @@ function fmtTime(s: string | null) {
               :key="p"
               size="small"
               class="param-tag"
-            >{{ p }}</el-tag>
+              :title="p"
+            >{{ FIELD_LABEL[p] ?? p }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="description" label="说明" show-overflow-tooltip />
@@ -252,27 +382,41 @@ function fmtTime(s: string | null) {
         </el-form-item>
 
         <el-form-item label="参数列表">
-          <div class="param-list">
-            <el-tag
-              v-for="p in form.parameterNames"
-              :key="p"
-              closable
-              size="small"
-              @close="removeParam(p)"
-              class="param-tag"
-            >{{ p }}</el-tag>
-            <el-input
-              v-model="paramInput"
-              size="small"
-              placeholder="输入参数名 Enter 添加"
-              style="width:160px"
-              @keydown.enter.prevent="addParam"
-            />
-          </div>
-          <div class="hint">在 body_dsl 中用 <code>{"$ref":"参数名"}</code> 引用。</div>
+          <el-select
+            v-model="form.parameterNames"
+            multiple
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="从病案字段中选择算子参数（支持搜索 + 多选）"
+            style="width: 100%"
+          >
+            <el-option-group v-for="g in FIELD_GROUPS" :key="g.group" :label="g.group">
+              <el-option
+                v-for="o in g.options"
+                :key="o.value"
+                :label="`${o.label} (${o.value})`"
+                :value="o.value"
+              />
+            </el-option-group>
+          </el-select>
+          <div class="hint">在 body_dsl 中用 <code>{"$ref":"参数名"}</code> 引用所选字段名。</div>
         </el-form-item>
 
         <el-form-item label="body_dsl">
+          <div class="dsl-toolbar">
+            <el-button
+              :icon="MagicStick"
+              :loading="generating"
+              size="small"
+              type="primary"
+              plain
+              @click="generateBodyDsl"
+            >
+              AI 推荐 bodyDsl
+            </el-button>
+            <span class="dsl-toolbar-hint">基于上方参数列表与说明让 LLM 推荐</span>
+          </div>
           <el-input
             v-model="form.bodyDslText"
             type="textarea"
@@ -319,11 +463,15 @@ function fmtTime(s: string | null) {
 
 .param-tag { margin: 0 4px 4px 0; }
 
-.param-list {
+.dsl-toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.dsl-toolbar-hint {
+  font-size: 0.78rem;
+  color: #999;
 }
 
 .op-form { padding: 0 1rem; }

@@ -1,5 +1,6 @@
 package com.deepaudit.config;
 
+import com.deepaudit.service.OperatorBodyDslGenerator;
 import com.deepaudit.service.RuleDslGenerator;
 import com.deepaudit.service.SamplePdfTool;
 import com.deepaudit.service.TestingAssistantService;
@@ -46,6 +47,9 @@ public class LlmAutoConfiguration {
 
     private static final String API_KEY_PRESENT =
         "'${deepaudit.llm.api-key:}' != ''";
+
+    private static final String OPERATOR_BODY_DSL_PROMPT_RESOURCE =
+        "prompts/operator_body_dsl_generator.system.txt";
 
     private static final String RULE_DSL_PROMPT_RESOURCE =
         "prompts/rule_dsl_generator.system.txt";
@@ -105,6 +109,30 @@ public class LlmAutoConfiguration {
             return chatModel.generate(List.of(
                 SystemMessage.from(prompt),
                 UserMessage.from(naturalLanguage)
+            )).content().text();
+        };
+    }
+
+    /**
+     * 自定义算子 bodyDsl 生成器 —— 与 ruleDslGenerator 同样走 plain
+     * SystemMessage 路径（避免 langchain4j 模板引擎把示例里的 {{...}} 当变量）。
+     * Service 端会拼"参数列表 + 说明"作为 user message。
+     */
+    @Bean
+    @ConditionalOnBean(ChatLanguageModel.class)
+    public OperatorBodyDslGenerator operatorBodyDslGenerator(ChatLanguageModel chatModel) throws IOException {
+        String systemPrompt = loadResourceText(OPERATOR_BODY_DSL_PROMPT_RESOURCE);
+        log.info("Loaded operator-bodyDsl system prompt ({} chars) from {}",
+            systemPrompt.length(), OPERATOR_BODY_DSL_PROMPT_RESOURCE);
+
+        return (parameterNames, description) -> {
+            String userMsg = "参数名列表（按顺序）: "
+                + (parameterNames == null ? "[]" : parameterNames)
+                + "\n说明: "
+                + (description == null || description.isBlank() ? "(空)" : description);
+            return chatModel.generate(List.of(
+                SystemMessage.from(systemPrompt),
+                UserMessage.from(userMsg)
             )).content().text();
         };
     }
