@@ -110,8 +110,15 @@ const confidenceColor = computed(() => {
   return '#b3261e';
 });
 
+// 必填项：医保结算 + 实名制就医的硬性指标。validate() 在保存（草稿/确认）
+// 之前都会触发，缺项即 block。
 const rules = {
-  recordNo: [{ required: true, message: '病案号必填', trigger: 'blur' }],
+  recordNo:     [{ required: true, message: '病案号必填', trigger: 'blur' }],
+  name:         [{ required: true, message: '姓名必填', trigger: 'blur' }],
+  gender:       [{ required: true, message: '性别必填', trigger: 'change' }],
+  birthDate:    [{ required: true, message: '出生日期必填', trigger: 'change' }],
+  age:          [{ required: true, type: 'number', message: '年龄必填', trigger: 'blur' }],
+  idCardMasked: [{ required: true, message: '身份证号必填（医保结算 + 实名制就医硬性指标）', trigger: 'blur' }],
 };
 
 // Pre-flight + post-error message mapping. Pre-flight short-circuits the
@@ -777,22 +784,22 @@ watch(
         </el-col>
       </el-row>
 
-      <!-- 行 1: 姓名 / 性别 / 出生日期 / 年龄 / 国籍 -->
+      <!-- 行 1: 姓名 / 性别 / 出生日期 / 年龄 / 国籍（前 4 项硬性必填）-->
       <el-row :gutter="16">
         <el-col :span="5">
-          <el-form-item label="姓名">
+          <el-form-item label="姓名" prop="name" required>
             <el-input v-model="form.name" placeholder="患者姓名" clearable />
           </el-form-item>
         </el-col>
         <el-col :span="4">
-          <el-form-item label="性别">
+          <el-form-item label="性别" prop="gender" required>
             <el-select v-model="form.gender" clearable placeholder="">
               <el-option v-for="o in GENDER_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="5">
-          <el-form-item label="出生日期">
+          <el-form-item label="出生日期" prop="birthDate" required>
             <el-date-picker
               v-model="form.birthDate"
               type="date"
@@ -802,7 +809,7 @@ watch(
           </el-form-item>
         </el-col>
         <el-col :span="4">
-          <el-form-item label="年龄">
+          <el-form-item label="年龄" prop="age" required>
             <el-input-number v-model="form.age" :min="0" :max="150" :controls="false" style="width: 100%" />
           </el-form-item>
         </el-col>
@@ -861,7 +868,7 @@ watch(
           </el-form-item>
         </el-col>
         <el-col :span="7">
-          <el-form-item label="证件号">
+          <el-form-item label="证件号" prop="idCardMasked" required>
             <el-input v-model="form.idCardMasked" placeholder="如 110101********0011" clearable />
           </el-form-item>
         </el-col>
