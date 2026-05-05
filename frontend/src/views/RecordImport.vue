@@ -420,32 +420,41 @@ function section(_title: string, body: string): string {
   return `<table>${body}</table>`;
 }
 
-// 用户提供的 14 行布局：每行 1 个独立 <table>，相邻表通过 CSS 负 margin 黏合。
-// 字段数任意（2~5 都支持），cell 数 = pairs.length * 2（每对 [label, value] → th + td）
-function rowTable(...pairs: [string, unknown][]): string {
+// 14 行布局每行 1 个独立 <table>，相邻表通过 CSS 负 margin 黏合。
+// 每对 [label, value, weight?] —— weight 默认 1，按 weight 比例分配 td 列宽，
+// 让长字段（地址、诊断名）占更宽空间、短字段（邮编、年龄）占更窄空间。
+// th 列宽由 CSS 自动按字段名长度收缩（width:1px + nowrap = shrink-to-fit）。
+type RowPair = [string, unknown] | [string, unknown, number];
+function rowTable(...pairs: RowPair[]): string {
+  const weights = pairs.map((p) => (typeof p[2] === 'number' ? p[2] : 1));
+  const total = weights.reduce((s, w) => s + w, 0);
   const cells = pairs
-    .map(([l, v]) => `<th>${l}</th><td>${escapeHtml(v)}</td>`)
+    .map(([l, v], i) => {
+      const tdPct = (weights[i] / total) * 100;
+      return `<th>${l}</th><td style="width:${tdPct.toFixed(2)}%">${escapeHtml(v)}</td>`;
+    })
     .join('');
-  return `<table><tr>${cells}</tr></table>`;
+  return `<table class="row"><tr>${cells}</tr></table>`;
 }
 
 function buildPrintHtml(r: MedicalRecord): string {
-  // 病案号头（必填主键，单独一行）
-  const head = rowTable(['病案号', r.recordNo], ['来源医院', r.sourceHospital]);
+  // 病案号头（必填主键，单独一行）— 来源医院字段较长给 weight 4
+  const head = rowTable(['病案号', r.recordNo, 1], ['来源医院', r.sourceHospital, 4]);
 
   // 严格按用户列出的 14 行布局，行 9/13 跳过；行 1~14 每行一个 rowTable
-  const r1  = rowTable(['姓名', r.name], ['性别', r.gender], ['出生日期', r.birthDate], ['年龄', r.age], ['国籍', r.nationality]);
-  const r2  = rowTable(['(不足1岁的)年龄(天)', r.ageDays], ['新生儿出生体重 (g)', r.newbornBirthWeight], ['新生儿入院体重 (g)', r.newbornAdmissionWeight]);
-  const r3  = rowTable(['出生地', r.birthPlace], ['籍贯', r.nativePlace], ['民族', r.ethnicity]);
-  const r4  = rowTable(['证件类型', r.idCardType], ['证件号', r.idCardMasked], ['职业', r.occupation], ['婚姻', r.maritalStatus]);
-  const r5  = rowTable(['现住址', r.currentAddress], ['电话', r.currentPhone], ['邮编', r.currentZip]);
-  const r6  = rowTable(['户口地址', r.registeredAddress], ['邮编', r.registeredZip]);
-  const r7  = rowTable(['工作单位及地址', r.workplace], ['单位电话', r.workPhone], ['邮编', r.workZip]);
-  const r8  = rowTable(['联系人姓名', r.contactName], ['关系', r.contactRelation], ['地址', r.contactAddress], ['电话', r.contactPhone]);
-  const r10 = rowTable(['入院途径', r.admissionRoute]);
-  const r11 = rowTable(['入院时间', r.admissionDate], ['入院科别', r.admissionDept], ['病房', r.admissionWard], ['转科科别', r.specialtyDept]);
-  const r12 = rowTable(['出院时间', r.dischargeDate], ['出院科别', r.dischargeDept], ['病房', r.dischargeWard], ['实际住院(天)', r.lengthOfStay]);
-  const r14 = rowTable(['门(急)诊诊断', r.outpatientDiagnosis], ['疾病编码', r.outpatientDiagnosisCode], ['入院情况', r.outpatientAdmissionCondition], ['入院后确诊日期', r.confirmedAfterAdmissionDate]);
+  // weight 按字段值的常见字符长度分配（例如：地址 5、诊断名 3、邮编 1）
+  const r1  = rowTable(['姓名', r.name, 3], ['性别', r.gender, 1], ['出生日期', r.birthDate, 2], ['年龄', r.age, 1], ['国籍', r.nationality, 2]);
+  const r2  = rowTable(['(不足1岁的)年龄(天)', r.ageDays, 1], ['新生儿出生体重 (g)', r.newbornBirthWeight, 1], ['新生儿入院体重 (g)', r.newbornAdmissionWeight, 1]);
+  const r3  = rowTable(['出生地', r.birthPlace, 2], ['籍贯', r.nativePlace, 2], ['民族', r.ethnicity, 1]);
+  const r4  = rowTable(['证件类型', r.idCardType, 2], ['证件号', r.idCardMasked, 4], ['职业', r.occupation, 2], ['婚姻', r.maritalStatus, 1]);
+  const r5  = rowTable(['现住址', r.currentAddress, 5], ['电话', r.currentPhone, 2], ['邮编', r.currentZip, 1]);
+  const r6  = rowTable(['户口地址', r.registeredAddress, 5], ['邮编', r.registeredZip, 1]);
+  const r7  = rowTable(['工作单位及地址', r.workplace, 5], ['单位电话', r.workPhone, 2], ['邮编', r.workZip, 1]);
+  const r8  = rowTable(['联系人姓名', r.contactName, 2], ['关系', r.contactRelation, 1], ['地址', r.contactAddress, 4], ['电话', r.contactPhone, 2]);
+  const r10 = rowTable(['入院途径', r.admissionRoute, 1]);
+  const r11 = rowTable(['入院时间', r.admissionDate, 2], ['入院科别', r.admissionDept, 2], ['病房', r.admissionWard, 1], ['转科科别', r.specialtyDept, 2]);
+  const r12 = rowTable(['出院时间', r.dischargeDate, 2], ['出院科别', r.dischargeDept, 2], ['病房', r.dischargeWard, 1], ['实际住院(天)', r.lengthOfStay, 1]);
+  const r14 = rowTable(['门(急)诊诊断', r.outpatientDiagnosis, 3], ['疾病编码', r.outpatientDiagnosisCode, 2], ['入院情况', r.outpatientAdmissionCondition, 1], ['入院后确诊日期', r.confirmedAfterAdmissionDate, 2]);
   const upper = head + r1 + r2 + r3 + r4 + r5 + r6 + r7 + r8 + r10 + r11 + r12 + r14;
 
   // ─── 出院诊断网格（4 列 × 动态行，与前端同布局）──────────────────────
@@ -503,22 +512,44 @@ function buildPrintHtml(r: MedicalRecord): string {
 <meta charset="UTF-8">
 <title>住院病案首页 ${escapeHtml(r.recordNo)}</title>
 <style>
-  body { font-family: 'SimSun', '宋体', serif; color: #000; padding: 20px; font-size: 12px; }
+  body { font-family: 'SimSun', '宋体', serif; color: #000; padding: 20px; font-size: 12px; line-height: 1.4; }
   h1 { font-size: 18px; text-align: center; margin: 0 0 16px; letter-spacing: 4px; }
   /* 区块标题已按需求移除，所有 <table> 上下直接拼接，靠 1px 黑线区分 */
-  table { width: 100%; border-collapse: collapse; margin-bottom: 0; border-top: none; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 0; border-top: none; table-layout: auto; }
   table + table { margin-top: -1px; }      /* 相邻 table 共享一条黑线，视觉上形成连续表格 */
-  th, td { border: 1px solid #000; padding: 5px 8px; vertical-align: top; line-height: 1.5; }
-  th { font-weight: 600; width: 14%; background: #fff; text-align: left; }
-  td { width: 36%; word-break: break-all; }
+  th, td { border: 1px solid #000; padding: 4px 8px; vertical-align: middle; height: 22px; }
+  th { font-weight: 600; background: #fff; text-align: left; }
   thead th { text-align: center; }
-  /* 诊断网格：4 列等宽（出院诊断/疾病编码/入院病情/出院情况） */
+
+  /* 14 行 row 表：th 列宽自动按字段名长度收缩；td 列宽由 inline style 按 weight 分配；
+     单行高度恒定，超长内容自动省略号截断（不换行、不撑高） */
+  table.row { table-layout: auto; }
+  table.row th {
+    width: 1%;                    /* + nowrap = shrink-to-fit；浏览器按 th 内容宽度自动收缩 */
+    white-space: nowrap;
+    padding: 4px 10px 4px 8px;
+  }
+  table.row td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 诊断网格：4 列按内容长短分配（出院诊断 40% / 疾病编码 20% / 入院病情 20% / 出院情况 20%） */
   table.diag { table-layout: fixed; }
-  table.diag th, table.diag td { width: 25%; text-align: left; padding: 4px 6px; }
+  table.diag th, table.diag td {
+    text-align: left; padding: 4px 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  table.diag th:nth-child(1), table.diag td:nth-child(1) { width: 40%; }
+  table.diag th:nth-child(2), table.diag td:nth-child(2) { width: 20%; }
+  table.diag th:nth-child(3), table.diag td:nth-child(3) { width: 20%; }
+  table.diag th:nth-child(4), table.diag td:nth-child(4) { width: 20%; }
   table.diag thead th { text-align: center; background: #f5f5f5; font-weight: 600; }
+
   /* 字典脚注：紧贴诊断网格下方，无外框、左右两列 */
   table.legend { border: none; margin-top: 4px; }
-  table.legend td { border: none; padding: 2px 6px; font-size: 11px; color: #333; width: 50%; }
+  table.legend td { border: none; padding: 2px 6px; font-size: 11px; color: #333; width: 50%; height: auto; }
   @media print {
     body { padding: 0; }
     h1 { margin-bottom: 12px; }
@@ -1399,7 +1430,11 @@ watch(
   background: #fff;
   border: 1px solid #eee;
   border-radius: 8px;
-  padding: 0.5rem 1.5rem 1.5rem;
+  padding: 0.4rem 1.25rem 1rem;
+}
+/* 压缩 el-form-item 默认上下间距：默认 18px → 8px，让 14 行布局更紧凑 */
+.record-form :deep(.el-form-item) {
+  margin-bottom: 8px;
 }
 /* 诊断网格：10 行 × 2 列固定布局，左 4 列 + 右 4 列 */
 .diag-grid {
@@ -1453,7 +1488,7 @@ watch(
 }
 .diag-legend b { color: #333; font-weight: 600; }
 .record-form :deep(.el-divider--horizontal) {
-  margin: 22px 0 14px;
+  margin: 12px 0 8px;
 }
 .record-form :deep(.el-divider__text) {
   color: #444;
@@ -1465,8 +1500,8 @@ watch(
 .record-form :deep(.el-form-item__label) {
   font-size: 0.85rem;
   color: #555;
-  padding: 0 0 4px;
-  line-height: 1.4;
+  padding: 0 0 2px;
+  line-height: 1.3;
 }
 
 .actions {
