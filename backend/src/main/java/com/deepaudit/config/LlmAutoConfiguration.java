@@ -1,6 +1,8 @@
 package com.deepaudit.config;
 
 import com.deepaudit.service.RuleDslGenerator;
+import com.deepaudit.service.SamplePdfTool;
+import com.deepaudit.service.TestingAssistantService;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
@@ -9,6 +11,7 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiEmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
+import dev.langchain4j.service.AiServices;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationRunner;
@@ -120,6 +123,32 @@ public class LlmAutoConfiguration {
         try (InputStream in = new ClassPathResource(path).getInputStream()) {
             return StreamUtils.copyToString(in, StandardCharsets.UTF_8);
         }
+    }
+
+    private static final String TESTING_ASSISTANT_PROMPT_RESOURCE =
+        "prompts/testing_assistant.system.txt";
+
+    /**
+     * 测试助手 AiService（T2.5 衍生）：把 SamplePdfTool 的三个 @Tool 方法
+     * 注入 Gemini，让 LLM 按需调用 Python 生成器生成测试 PDF。
+     *
+     * <p>系统提示从 {@code prompts/testing_assistant.system.txt} 加载；
+     * 通过 {@code systemMessageProvider} 注入，绕过 PromptTemplate 引擎，
+     * 避免 prompt 里的双大括号被误判为变量（同 ruleDslGenerator 方案）。
+     */
+    @Bean
+    @ConditionalOnBean(ChatLanguageModel.class)
+    public TestingAssistantService testingAssistantService(
+        ChatLanguageModel chatModel,
+        SamplePdfTool samplePdfTool
+    ) throws IOException {
+        String systemPrompt = loadResourceText(TESTING_ASSISTANT_PROMPT_RESOURCE);
+        log.info("Loaded testing-assistant system prompt ({} chars)", systemPrompt.length());
+        return AiServices.builder(TestingAssistantService.class)
+            .chatLanguageModel(chatModel)
+            .tools(samplePdfTool)
+            .systemMessageProvider(ignored -> systemPrompt)
+            .build();
     }
 
     /**
