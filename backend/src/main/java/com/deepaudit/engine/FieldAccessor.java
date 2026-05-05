@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * 30-field whitelist for the rule DSL (plan §4.4 curated fields).
+ * 60-field whitelist for the rule DSL (V1 §4.4 + V6 HQMS + V7 main-diagnosis attrs).
  *
  * <p>Acts as both:
  * <ul>
@@ -72,7 +72,47 @@ public final class FieldAccessor {
         // Source / extraction metadata (3)
         Map.entry("sourceHospital",        MedicalRecordMain::getSourceHospital),
         Map.entry("sourcePdfPath",         MedicalRecordMain::getSourcePdfPath),
-        Map.entry("extractionConfidence",  MedicalRecordMain::getExtractionConfidence)
+        Map.entry("extractionConfidence",  MedicalRecordMain::getExtractionConfidence),
+
+        // V6 — Demographics expansion (10)
+        Map.entry("nationality",             MedicalRecordMain::getNationality),
+        Map.entry("ethnicity",               MedicalRecordMain::getEthnicity),
+        Map.entry("maritalStatus",           MedicalRecordMain::getMaritalStatus),
+        Map.entry("occupation",              MedicalRecordMain::getOccupation),
+        Map.entry("ageDays",                 MedicalRecordMain::getAgeDays),
+        Map.entry("newbornBirthWeight",      MedicalRecordMain::getNewbornBirthWeight),
+        Map.entry("newbornAdmissionWeight",  MedicalRecordMain::getNewbornAdmissionWeight),
+        Map.entry("idCardType",              MedicalRecordMain::getIdCardType),
+        Map.entry("birthPlace",              MedicalRecordMain::getBirthPlace),
+        Map.entry("nativePlace",             MedicalRecordMain::getNativePlace),
+
+        // V6 — Address & contacts (12)
+        Map.entry("currentAddress",          MedicalRecordMain::getCurrentAddress),
+        Map.entry("currentPhone",            MedicalRecordMain::getCurrentPhone),
+        Map.entry("currentZip",              MedicalRecordMain::getCurrentZip),
+        Map.entry("registeredAddress",       MedicalRecordMain::getRegisteredAddress),
+        Map.entry("registeredZip",           MedicalRecordMain::getRegisteredZip),
+        Map.entry("workplace",               MedicalRecordMain::getWorkplace),
+        Map.entry("workPhone",               MedicalRecordMain::getWorkPhone),
+        Map.entry("workZip",                 MedicalRecordMain::getWorkZip),
+        Map.entry("contactName",             MedicalRecordMain::getContactName),
+        Map.entry("contactRelation",         MedicalRecordMain::getContactRelation),
+        Map.entry("contactAddress",          MedicalRecordMain::getContactAddress),
+        Map.entry("contactPhone",            MedicalRecordMain::getContactPhone),
+
+        // V6 — Ward / specialty (3)
+        Map.entry("admissionWard",           MedicalRecordMain::getAdmissionWard),
+        Map.entry("dischargeWard",           MedicalRecordMain::getDischargeWard),
+        Map.entry("specialtyDept",           MedicalRecordMain::getSpecialtyDept),
+
+        // V6 — Outpatient diagnosis (2)
+        Map.entry("outpatientDiagnosis",     MedicalRecordMain::getOutpatientDiagnosis),
+        Map.entry("outpatientDiagnosisCode", MedicalRecordMain::getOutpatientDiagnosisCode),
+
+        // V7 — Main diagnosis attributes flat-mirrored from subtable (3)
+        Map.entry("mainAdmissionCondition",  MedicalRecordMain::getMainAdmissionCondition),
+        Map.entry("mainDischargeCondition",  MedicalRecordMain::getMainDischargeCondition),
+        Map.entry("mainNote",                MedicalRecordMain::getMainNote)
     );
 
     /**

@@ -151,16 +151,30 @@ def generate_mock_record(seed: int | None = None) -> dict:
         "HY":    "{0} {1}".format(*random.choice(MARITAL)),
         "ZY":    fake.job()[:8],
         "SFZH":  _mask_id(fake.ssn()),
+        "CSD":   fake.province() + fake.city_name(),
+        "GG":    fake.province() + fake.city_name(),
+        # V6 — 新生儿专属（仅 age==0 时填充，让 age_birth_weight trap 等规则可命中）
+        "BZYZS_NL": random.randint(0, 364) if age == 0 else None,
+        "XSETZ":    random.randint(2500, 4500) if age == 0 else None,
+        "XSERYTZ":  random.randint(2400, 4400) if age == 0 else None,
         "XZZ":   fake.address().split("\n")[0],
         "DH":    fake.phone_number(),
+        "YB1":   fake.postcode(),
+        "HKDZ":  fake.address().split("\n")[0],
+        "YB2":   fake.postcode(),
+        "GZDWJDZ": (fake.company() + " " + fake.address().split("\n")[0])[:80],
+        "DWDH":  fake.phone_number(),
+        "YB3":   fake.postcode(),
         "LXRXM": fake.name(),
         "GX":    "1 配偶",
+        "DZ":    fake.address().split("\n")[0],
         "DH1":   fake.phone_number(),
         # 入出院
         "RYTJ":  f"{adm_route_code} {adm_route_label}",
         "RYSJ":  admit.strftime("%Y-%m-%d %H:%M"),
         "RYKB":  random.choice(DEPARTMENTS),
         "RYBF":  f"{random.randint(1, 18)}病区",
+        "ZKKB":  None,  # 专科科别：仅转科病例填充；MVP 默认 null 由 R-completeness 类规则覆盖
         "CYSJ":  discharge.strftime("%Y-%m-%d %H:%M"),
         "CYKB":  random.choice(DEPARTMENTS),
         "CYBF":  f"{random.randint(1, 18)}病区",
@@ -170,7 +184,8 @@ def generate_mock_record(seed: int | None = None) -> dict:
         "JBBM":     icd10_code,
         "ZYZD":     icd10_name,
         "ZYZD_JBBM": icd10_code,
-        "XY_RYBQ":  "1 有",
+        # V7: 主诊入院病况（HQMS RC014 — 1 有 / 2 临床未确定 / 3 情况不明 / 4 无）
+        "XY_RYBQ":  random.choice(["1 有", "1 有", "1 有", "2 临床未确定"]),
         # 出院其他诊断（前 3 条占位）
         "QTZD1":     random.choice(ICD10_SAMPLES)[1] if random.random() < 0.7 else None,
         "ZYZD_JBBM1": None,  # filled below if QTZD1 set

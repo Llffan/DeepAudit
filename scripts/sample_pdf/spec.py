@@ -62,9 +62,14 @@ def load_field_spec(path: str | None = None) -> dict[str, FieldSpec]:
     return out
 
 
-# Mapping V1 schema fields -> HQMS code, used by mock generators and the
-# round-trip integration test ("the field LLM extracts must match what
+# Mapping V1 + V6 schema fields -> HQMS code, used by mock generators and
+# the round-trip integration test ("the field LLM extracts must match what
 # the schema expects").
+#
+# Note: idCardType has no dedicated HQMS short code in 病案标准.xlsx — the
+# spreadsheet only models 证件号(SFZH) and assumes it implicitly is the
+# resident ID card. We keep the schema column for future extensibility but
+# do NOT round-trip it through the PDF.
 V1_TO_HQMS: dict[str, str] = {
     "recordNo": "BAH",
     "name": "XM",
@@ -72,6 +77,32 @@ V1_TO_HQMS: dict[str, str] = {
     "birthDate": "CSRQ",
     "age": "NL",
     "idCardMasked": "SFZH",
+
+    # V6 — Demographics
+    "nationality": "GJ",
+    "ageDays": "BZYZS_NL",
+    "newbornBirthWeight": "XSETZ",
+    "newbornAdmissionWeight": "XSERYTZ",
+    "birthPlace": "CSD",
+    "nativePlace": "GG",
+    "ethnicity": "MZ",
+    "occupation": "ZY",
+    "maritalStatus": "HY",
+
+    # V6 — Address & contacts
+    "currentAddress": "XZZ",
+    "currentPhone": "DH",
+    "currentZip": "YB1",
+    "registeredAddress": "HKDZ",
+    "registeredZip": "YB2",
+    "workplace": "GZDWJDZ",
+    "workPhone": "DWDH",
+    "workZip": "YB3",
+    "contactName": "LXRXM",
+    "contactRelation": "GX",
+    "contactAddress": "DZ",
+    "contactPhone": "DH1",
+
     "admissionDate": "RYSJ",
     "dischargeDate": "CYSJ",
     "lengthOfStay": "SJZY",
@@ -79,8 +110,20 @@ V1_TO_HQMS: dict[str, str] = {
     "dischargeDept": "CYKB",
     "admissionRoute": "RYTJ",
     "dischargeStatus": "LYFS",
+
+    # V6 — Ward / specialty
+    "admissionWard": "RYBF",
+    "dischargeWard": "CYBF",
+    "specialtyDept": "ZKKB",
+
+    # V6 — Outpatient diagnosis (use 西医 slot)
+    "outpatientDiagnosis": "MZZD_XYZD",
+    "outpatientDiagnosisCode": "JBBM",
+
     "mainDiagnosisCode": "ZYZD_JBBM",
     "mainDiagnosisName": "ZYZD",
+    "mainAdmissionCondition": "XY_RYBQ",   # V7 — 主诊入院病况
+    # mainDischargeCondition / mainNote 在 HQMS xlsx 中无单独槽位，故不导出
     "pathologicalDiagnosis": "BLZD",
     "mainOperationCode": "SSJCZBM1",
     "mainOperationName": "SSJCZMC1",

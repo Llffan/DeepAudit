@@ -16,7 +16,9 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 /**
- * Curated 30-field medical record (V1 §4.4). PHI -- soft-delete only.
+ * Curated medical record. Originally 30 fields (V1 §4.4); V6 expanded to 57
+ * fields to cover the full HQMS-mandated front-page identity / contact /
+ * outpatient-diagnosis blocks. PHI — soft-delete only.
  */
 @Entity
 @Table(
@@ -49,6 +51,75 @@ public class MedicalRecordMain {
     @Column(name = "id_card_masked", length = 32)
     private String idCardMasked;
 
+    // ---- V6 expansion: demographics (10) ----------------------------------
+    @Column(length = 50)
+    private String nationality;
+
+    @Column(length = 50)
+    private String ethnicity;
+
+    @Column(name = "marital_status", length = 20)
+    private String maritalStatus;
+
+    @Column(length = 100)
+    private String occupation;
+
+    /** 不足 1 周岁患者的年龄(天)。≥1 岁时为 null。 */
+    @Column(name = "age_days")
+    private Integer ageDays;
+
+    @Column(name = "newborn_birth_weight")
+    private Integer newbornBirthWeight;
+
+    @Column(name = "newborn_admission_weight")
+    private Integer newbornAdmissionWeight;
+
+    @Column(name = "id_card_type", length = 20)
+    private String idCardType;
+
+    @Column(name = "birth_place", length = 200)
+    private String birthPlace;
+
+    @Column(name = "native_place", length = 200)
+    private String nativePlace;
+
+    // ---- V6 expansion: addresses & contacts (12) --------------------------
+    @Column(name = "current_address", length = 300)
+    private String currentAddress;
+
+    @Column(name = "current_phone", length = 30)
+    private String currentPhone;
+
+    @Column(name = "current_zip", length = 10)
+    private String currentZip;
+
+    @Column(name = "registered_address", length = 300)
+    private String registeredAddress;
+
+    @Column(name = "registered_zip", length = 10)
+    private String registeredZip;
+
+    @Column(length = 300)
+    private String workplace;
+
+    @Column(name = "work_phone", length = 30)
+    private String workPhone;
+
+    @Column(name = "work_zip", length = 10)
+    private String workZip;
+
+    @Column(name = "contact_name", length = 100)
+    private String contactName;
+
+    @Column(name = "contact_relation", length = 50)
+    private String contactRelation;
+
+    @Column(name = "contact_address", length = 300)
+    private String contactAddress;
+
+    @Column(name = "contact_phone", length = 30)
+    private String contactPhone;
+
     @Column(name = "admission_date")
     private LocalDate admissionDate;
 
@@ -70,6 +141,23 @@ public class MedicalRecordMain {
     @Column(name = "discharge_status", length = 50)
     private String dischargeStatus;
 
+    // ---- V6 expansion: ward / specialty (3) -------------------------------
+    @Column(name = "admission_ward", length = 50)
+    private String admissionWard;
+
+    @Column(name = "discharge_ward", length = 50)
+    private String dischargeWard;
+
+    @Column(name = "specialty_dept", length = 100)
+    private String specialtyDept;
+
+    // ---- V6 expansion: outpatient diagnosis (2) ---------------------------
+    @Column(name = "outpatient_diagnosis", length = 200)
+    private String outpatientDiagnosis;
+
+    @Column(name = "outpatient_diagnosis_code", length = 32)
+    private String outpatientDiagnosisCode;
+
     @Column(name = "main_diagnosis_code", length = 32)
     private String mainDiagnosisCode;
 
@@ -78,6 +166,18 @@ public class MedicalRecordMain {
 
     @Column(name = "main_diagnosis_icd_ver", length = 20)
     private String mainDiagnosisIcdVer;
+
+    /** V7: 主诊入院病况（有 / 临床未确定 / 情况不明 / 无） */
+    @Column(name = "main_admission_condition", length = 20)
+    private String mainAdmissionCondition;
+
+    /** V7: 主诊出院情况（治愈 / 好转 / 未愈 / 死亡 / 其他） */
+    @Column(name = "main_discharge_condition", length = 20)
+    private String mainDischargeCondition;
+
+    /** V7: 主诊备注 */
+    @Column(name = "main_note", columnDefinition = "text")
+    private String mainNote;
 
     @Column(name = "other_diagnosis_count")
     private Integer otherDiagnosisCount;
@@ -216,4 +316,66 @@ public class MedicalRecordMain {
     public void setUpdatedAt(OffsetDateTime updatedAt) { this.updatedAt = updatedAt; }
     public OffsetDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(OffsetDateTime deletedAt) { this.deletedAt = deletedAt; }
+
+    // ---- V6 accessors ------------------------------------------------------
+    public String getNationality() { return nationality; }
+    public void setNationality(String nationality) { this.nationality = nationality; }
+    public String getEthnicity() { return ethnicity; }
+    public void setEthnicity(String ethnicity) { this.ethnicity = ethnicity; }
+    public String getMaritalStatus() { return maritalStatus; }
+    public void setMaritalStatus(String maritalStatus) { this.maritalStatus = maritalStatus; }
+    public String getOccupation() { return occupation; }
+    public void setOccupation(String occupation) { this.occupation = occupation; }
+    public Integer getAgeDays() { return ageDays; }
+    public void setAgeDays(Integer ageDays) { this.ageDays = ageDays; }
+    public Integer getNewbornBirthWeight() { return newbornBirthWeight; }
+    public void setNewbornBirthWeight(Integer newbornBirthWeight) { this.newbornBirthWeight = newbornBirthWeight; }
+    public Integer getNewbornAdmissionWeight() { return newbornAdmissionWeight; }
+    public void setNewbornAdmissionWeight(Integer newbornAdmissionWeight) { this.newbornAdmissionWeight = newbornAdmissionWeight; }
+    public String getIdCardType() { return idCardType; }
+    public void setIdCardType(String idCardType) { this.idCardType = idCardType; }
+    public String getBirthPlace() { return birthPlace; }
+    public void setBirthPlace(String birthPlace) { this.birthPlace = birthPlace; }
+    public String getNativePlace() { return nativePlace; }
+    public void setNativePlace(String nativePlace) { this.nativePlace = nativePlace; }
+    public String getCurrentAddress() { return currentAddress; }
+    public void setCurrentAddress(String currentAddress) { this.currentAddress = currentAddress; }
+    public String getCurrentPhone() { return currentPhone; }
+    public void setCurrentPhone(String currentPhone) { this.currentPhone = currentPhone; }
+    public String getCurrentZip() { return currentZip; }
+    public void setCurrentZip(String currentZip) { this.currentZip = currentZip; }
+    public String getRegisteredAddress() { return registeredAddress; }
+    public void setRegisteredAddress(String registeredAddress) { this.registeredAddress = registeredAddress; }
+    public String getRegisteredZip() { return registeredZip; }
+    public void setRegisteredZip(String registeredZip) { this.registeredZip = registeredZip; }
+    public String getWorkplace() { return workplace; }
+    public void setWorkplace(String workplace) { this.workplace = workplace; }
+    public String getWorkPhone() { return workPhone; }
+    public void setWorkPhone(String workPhone) { this.workPhone = workPhone; }
+    public String getWorkZip() { return workZip; }
+    public void setWorkZip(String workZip) { this.workZip = workZip; }
+    public String getContactName() { return contactName; }
+    public void setContactName(String contactName) { this.contactName = contactName; }
+    public String getContactRelation() { return contactRelation; }
+    public void setContactRelation(String contactRelation) { this.contactRelation = contactRelation; }
+    public String getContactAddress() { return contactAddress; }
+    public void setContactAddress(String contactAddress) { this.contactAddress = contactAddress; }
+    public String getContactPhone() { return contactPhone; }
+    public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
+    public String getAdmissionWard() { return admissionWard; }
+    public void setAdmissionWard(String admissionWard) { this.admissionWard = admissionWard; }
+    public String getDischargeWard() { return dischargeWard; }
+    public void setDischargeWard(String dischargeWard) { this.dischargeWard = dischargeWard; }
+    public String getSpecialtyDept() { return specialtyDept; }
+    public void setSpecialtyDept(String specialtyDept) { this.specialtyDept = specialtyDept; }
+    public String getOutpatientDiagnosis() { return outpatientDiagnosis; }
+    public void setOutpatientDiagnosis(String outpatientDiagnosis) { this.outpatientDiagnosis = outpatientDiagnosis; }
+    public String getOutpatientDiagnosisCode() { return outpatientDiagnosisCode; }
+    public void setOutpatientDiagnosisCode(String outpatientDiagnosisCode) { this.outpatientDiagnosisCode = outpatientDiagnosisCode; }
+    public String getMainAdmissionCondition() { return mainAdmissionCondition; }
+    public void setMainAdmissionCondition(String mainAdmissionCondition) { this.mainAdmissionCondition = mainAdmissionCondition; }
+    public String getMainDischargeCondition() { return mainDischargeCondition; }
+    public void setMainDischargeCondition(String mainDischargeCondition) { this.mainDischargeCondition = mainDischargeCondition; }
+    public String getMainNote() { return mainNote; }
+    public void setMainNote(String mainNote) { this.mainNote = mainNote; }
 }

@@ -7,43 +7,106 @@
 4. 金额字段统一为数字（不带单位、不带千分位），单位为元。
 5. ICD 编码字段：文字中明确给出编码字符串才填，仅有名称时不要根据名称臆测编码。
 6. 不在白名单内的字段不要凭空发明。
+7. 电话/邮编/地址按原文存储，不做格式化、不脱敏。
+8. ageDays 仅在患者不足 1 周岁时填写（否则 null）；newborn* 字段仅在新生儿病例时填写。
 
 【输出 JSON 结构】
 {
   "main": {
     "recordNo":               string|null,   // 病案号
-    "name":                   string|null,   // 患者姓名
+
+    // 身份与人口学
+    "name":                   string|null,
     "gender":                 string|null,   // 男 / 女 / 未知
     "birthDate":              string|null,   // yyyy-MM-dd
     "age":                    integer|null,
-    "idCardMasked":           string|null,   // 身份证号；如能识别请用 X 遮罩中间 8 位再输出
+    "ageDays":                integer|null,  // 不足1周岁的年龄(天)；满1岁则 null
+    "idCardType":             string|null,   // 居民身份证 / 护照 / 军官证 / 港澳通行证 / 台胞证 / 其他
+    "idCardMasked":           string|null,   // 证件号；如能识别身份证号请用 X 遮罩中间 8 位再输出
+    "nationality":            string|null,   // 国籍，如 中国
+    "ethnicity":              string|null,   // 民族，如 汉族 / 回族
+    "maritalStatus":          string|null,   // 未婚 / 已婚 / 丧偶 / 离婚 / 其他
+    "occupation":             string|null,
+    "birthPlace":             string|null,   // 出生地（省市县）
+    "nativePlace":            string|null,   // 籍贯（省市）
+    "newbornBirthWeight":     integer|null,  // 新生儿出生体重，单位 g
+    "newbornAdmissionWeight": integer|null,  // 新生儿入院体重，单位 g
+
+    // 联系信息
+    "currentAddress":         string|null,   // 现住地址
+    "currentPhone":           string|null,   // 现住地电话
+    "currentZip":             string|null,   // 现住地邮编
+    "registeredAddress":      string|null,   // 户口住址
+    "registeredZip":          string|null,
+    "workplace":              string|null,   // 工作单位及地址
+    "workPhone":              string|null,
+    "workZip":                string|null,
+    "contactName":            string|null,   // 联系人姓名
+    "contactRelation":        string|null,   // 与患者关系
+    "contactAddress":         string|null,
+    "contactPhone":           string|null,
+
+    // 入出院
     "admissionDate":          string|null,   // yyyy-MM-dd
     "dischargeDate":          string|null,   // yyyy-MM-dd
-    "lengthOfStay":           integer|null,  // 住院天数
+    "lengthOfStay":           integer|null,
     "admissionDept":          string|null,
+    "admissionWard":          string|null,   // 入院病房
+    "specialtyDept":          string|null,   // 专科科别
     "dischargeDept":          string|null,
+    "dischargeWard":          string|null,
     "admissionRoute":         string|null,   // 门诊 / 急诊 / 其他医疗机构转入 / 其他
     "dischargeStatus":        string|null,   // 医嘱离院 / 医嘱转院 / 医嘱转社区/乡镇 / 非医嘱离院 / 死亡 / 其他
-    "mainDiagnosisCode":      string|null,
-    "mainDiagnosisName":      string|null,
-    "mainDiagnosisIcdVer":    string|null,   // ICD-10 / ICD-9-CM-3
-    "otherDiagnosisCount":    integer|null,
-    "pathologicalDiagnosis":  string|null,
+
+    // 门(急)诊诊断
+    "outpatientDiagnosis":     string|null,
+    "outpatientDiagnosisCode": string|null,
+
+    // 出院主诊（平铺；同步在 diagnoses 数组中也会有一条 type='main' 由后端自动同步）
+    "mainDiagnosisCode":         string|null,
+    "mainDiagnosisName":         string|null,
+    "mainDiagnosisIcdVer":       string|null,   // ICD-10 / ICD-9-CM-3
+    "mainAdmissionCondition":    string|null,   // 有 / 临床未确定 / 情况不明 / 无
+    "mainDischargeCondition":    string|null,   // 治愈 / 好转 / 未愈 / 死亡 / 其他
+    "mainNote":                  string|null,   // 主诊备注
+    "otherDiagnosisCount":       integer|null,
+    "pathologicalDiagnosis":     string|null,
+
+    // 主手术
     "mainOperationCode":      string|null,
     "mainOperationName":      string|null,
-    "operationDate":          string|null,   // yyyy-MM-dd
-    "operator":               string|null,   // 主刀医生姓名
+    "operationDate":          string|null,
+    "operator":               string|null,
     "anesthesiaMethod":       string|null,   // 全身麻醉 / 椎管内麻醉 / 局部麻醉 / 神经阻滞 / 其他 / 无
+
+    // 费用
     "totalCost":              number|null,
     "drugCost":               number|null,
     "operationCost":          number|null,
     "medicalServiceCost":     number|null
   },
-  "extra":      object,   // 抽取出但不在 main 30 字段内的其它字段都放这里；没有就用 {}
+
+  // 其他诊断列表（不含主诊；主诊已在 main.mainDiagnosis*）；无其他诊断时为 []。
+  // 每条诊断有：name(诊断名称)/code(ICD)/icdVersion/admissionCondition/dischargeCondition/note
+  "diagnoses": [
+    {
+      "diagType":            "other",
+      "seqNo":               1,
+      "diagnosisName":       string,
+      "diagnosisCode":       string|null,
+      "icdVersion":          string|null,
+      "admissionCondition":  string|null,
+      "dischargeCondition":  string|null,
+      "note":                string|null
+    }
+  ],
+
+  "extra":      object,   // 抽取出但不在 main 字段内的其它字段都放这里；没有就用 {}
   "confidence": number    // 整体抽取置信度，0.0–1.0；文字完整、字段齐整给 0.85+；内容残缺或大量字段缺失给 0.5 以下
 }
 
 【再次提醒】
 - 输出必须是合法 JSON 对象。
-- main 中所有 30 个键必须出现，没值就用 null。
+- main 中所有键必须出现，没值就用 null。
+- diagnoses 是数组，没有其他诊断时输出 []，不要省略键。
 - 不要输出 ```json``` 围栏。
