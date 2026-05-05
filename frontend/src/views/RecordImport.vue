@@ -2,7 +2,7 @@
 import { ref, reactive, computed, watch, onBeforeUnmount, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, type FormInstance, type UploadRequestOptions } from 'element-plus';
-import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick, Files, ChatRound, Printer, Select as SelectIcon } from '@element-plus/icons-vue';
+import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick, Files, ChatRound, Printer } from '@element-plus/icons-vue';
 import TestingAssistantDialog from '@/components/TestingAssistantDialog.vue';
 import {
   emptyRecord,
@@ -176,6 +176,7 @@ async function uploadPdf(opts: UploadRequestOptions) {
       degradedReason?: string;
     };
     if (body.fields) Object.assign(form, body.fields);
+    ensureMinDiagnoses();
     extractionConfidence.value = body.extractionConfidence ?? null;
     sourcePdfPath.value = body.sourcePdfPath ?? null;
     setPdfBlobFromFile(file);
@@ -220,6 +221,7 @@ async function mockFill() {
       // mix into the new mock record.
       Object.assign(form, emptyRecord());
       Object.assign(form, body.fields);
+      ensureMinDiagnoses();
     }
     extractionConfidence.value = body.extractionConfidence ?? null;
     sourcePdfPath.value = null;
@@ -323,6 +325,7 @@ async function loadRecord(id: number) {
     };
     Object.assign(form, emptyRecord());
     Object.assign(form, dto);
+    ensureMinDiagnoses();
     recordId.value = dto.id;
     recordStatus.value = dto.status ?? 'draft';
     recordCreatedAt.value = dto.createdAt ?? null;
@@ -357,80 +360,35 @@ function gotoList() {
   router.push('/records');
 }
 
-// V7 — Other diagnoses CRUD on the form. Adds an empty row, removes by index;
-// seqNo is recomputed on remove so the saved sequence stays dense (1..N).
+// ─── 诊断网格（4 列 × 动态行数；主诊固定第 1 行 + N 条其他诊断） ─────
+//
+// 设计：
+//  - 表头 4 列：出院诊断 / 疾病编码 / 入院病情 / 出院情况（+ 操作）
+//  - 第 1 行固定主诊，绑 form.mainDiagnosis* 平铺字段（不可删除）
+//  - 之后按 form.diagnoses[] 动态渲染，每行末尾"删除"按钮
+//  - 底部"+ 新增其他诊断"按钮 push 一个空槽到数组
+//  - 初始预填 INITIAL_OTHER_ROWS 个空"其他诊断"槽（让初始视觉感是 4 行）
+//  - save() 提交前过滤空诊断行 + 重排 seqNo（已在 save 函数中处理）
+
+const INITIAL_OTHER_ROWS = 3;   // 初始 3 个空其他诊断 + 1 主诊 = 4 行
+
+function ensureMinDiagnoses() {
+  if (!Array.isArray(form.diagnoses)) form.diagnoses = [];
+  while (form.diagnoses.length < INITIAL_OTHER_ROWS) {
+    form.diagnoses.push(emptyOtherDiagnosis(form.diagnoses.length + 1));
+  }
+}
+
 function addOtherDiagnosis() {
   if (!Array.isArray(form.diagnoses)) form.diagnoses = [];
   form.diagnoses.push(emptyOtherDiagnosis(form.diagnoses.length + 1));
   form.otherDiagnosisCount = form.diagnoses.length;
 }
+
 function removeOtherDiagnosis(idx: number) {
   form.diagnoses.splice(idx, 1);
   form.diagnoses.forEach((d, i) => (d.seqNo = i + 1));
   form.otherDiagnosisCount = form.diagnoses.length;
-}
-
-// ─── 诊断网格 helper（10 行 × 2 列固定布局） ──────────────────────────
-//
-// 槽位映射（i 从 0 开始）：
-//   i = 0       → 主诊（绑定 form.mainDiagnosis* 平铺字段）
-//   i = 1..19   → 其他诊断 form.diagnoses[i-1]
-// 视觉布局：
-//   左列 row 1..10 → i = 0..9
-//   右列 row 1..10 → i = 10..19
-// 即"从上到下、从左到右"。
-type DiagField = 'name' | 'code' | 'admission' | 'discharge';
-
-function getSlot(i: number): { name: string | null; code: string | null; admission: string | null; discharge: string | null; isMain: boolean } {
-  if (i === 0) {
-    return {
-      isMain: true,
-      name: form.mainDiagnosisName,
-      code: form.mainDiagnosisCode,
-      admission: form.mainAdmissionCondition,
-      discharge: form.mainDischargeCondition,
-    };
-  }
-  const d = form.diagnoses?.[i - 1];
-  return {
-    isMain: false,
-    name: d?.diagnosisName ?? null,
-    code: d?.diagnosisCode ?? null,
-    admission: d?.admissionCondition ?? null,
-    discharge: d?.dischargeCondition ?? null,
-  };
-}
-
-function setSlot(i: number, field: DiagField, value: string | null) {
-  const v = value === '' ? null : value;
-  if (i === 0) {
-    if (field === 'name') form.mainDiagnosisName = v;
-    else if (field === 'code') form.mainDiagnosisCode = v;
-    else if (field === 'admission') form.mainAdmissionCondition = v;
-    else if (field === 'discharge') form.mainDischargeCondition = v;
-    return;
-  }
-  const idx = i - 1;
-  // 按需扩展 diagnoses 数组到 idx，让中间槽位有空对象占位
-  while ((form.diagnoses?.length ?? 0) <= idx) {
-    if (!form.diagnoses) form.diagnoses = [];
-    form.diagnoses.push({
-      diagType: 'other',
-      seqNo: form.diagnoses.length + 1,
-      diagnosisName: '',
-      diagnosisCode: null,
-      icdVersion: 'ICD-10',
-      admissionCondition: null,
-      dischargeCondition: null,
-      note: null,
-    });
-  }
-  const d = form.diagnoses[idx];
-  if (field === 'name') d.diagnosisName = v ?? '';
-  else if (field === 'code') d.diagnosisCode = v;
-  else if (field === 'admission') d.admissionCondition = v;
-  else if (field === 'discharge') d.dischargeCondition = v;
-  d.seqNo = idx + 1;
 }
 
 // ─── PDF 导出（前端浏览器打印） ────────────────────────────────────────
@@ -488,37 +446,32 @@ function buildPrintHtml(r: MedicalRecord): string {
   const r11 = rowTable(['入院时间', r.admissionDate], ['入院科别', r.admissionDept], ['病房', r.admissionWard], ['转科科别', r.specialtyDept]);
   const r12 = rowTable(['出院时间', r.dischargeDate], ['出院科别', r.dischargeDept], ['病房', r.dischargeWard], ['实际住院(天)', r.lengthOfStay]);
   const r14 = rowTable(['门(急)诊诊断', r.outpatientDiagnosis], ['疾病编码', r.outpatientDiagnosisCode], ['入院情况', r.outpatientAdmissionCondition], ['入院后确诊日期', r.confirmedAfterAdmissionDate]);
-  // 离院方式（用户列表中未列但 schema 必有，单独一行）
-  const rExtra = rowTable(['离院方式', r.dischargeStatus]);
+  const upper = head + r1 + r2 + r3 + r4 + r5 + r6 + r7 + r8 + r10 + r11 + r12 + r14;
 
-  const upper = head + r1 + r2 + r3 + r4 + r5 + r6 + r7 + r8 + r10 + r11 + r12 + r14 + rExtra;
+  // ─── 出院诊断网格（4 列 × 动态行，与前端同布局）──────────────────────
+  // 行 1 = 主诊；行 2..N = r.diagnoses[]（已 filter 空行 / 提交前已 reseq）
+  // PDF 也只渲染有内容的诊断行（filter diagnosisName 空白）；保证打印简洁
+  const diagRows: Array<[string | null, string | null, string | null, string | null]> = [];
+  if (r.mainDiagnosisName && r.mainDiagnosisName.trim() !== '') {
+    diagRows.push([r.mainDiagnosisName, r.mainDiagnosisCode, r.mainAdmissionCondition, r.mainDischargeCondition]);
+  }
+  for (const d of r.diagnoses ?? []) {
+    if (!d.diagnosisName || d.diagnosisName.trim() === '') continue;
+    diagRows.push([d.diagnosisName, d.diagnosisCode, d.admissionCondition, d.dischargeCondition]);
+  }
+  // 至少打印一行空白以保留视觉节奏（避免诊断网格塌成只有表头）
+  if (diagRows.length === 0) diagRows.push([null, null, null, null]);
 
-  // ─── 出院诊断网格（10 行 × 2 列，与前端表单同布局）──────────────────────
-  // slot 0 = main, slot 1..19 = diagnoses[0..18]；左列 0..9，右列 10..19
-  const slotName = (i: number) => i === 0 ? r.mainDiagnosisName : (r.diagnoses?.[i - 1]?.diagnosisName ?? null);
-  const slotCode = (i: number) => i === 0 ? r.mainDiagnosisCode : (r.diagnoses?.[i - 1]?.diagnosisCode ?? null);
-  const slotAdm  = (i: number) => i === 0 ? r.mainAdmissionCondition : (r.diagnoses?.[i - 1]?.admissionCondition ?? null);
-  const slotDis  = (i: number) => i === 0 ? r.mainDischargeCondition : (r.diagnoses?.[i - 1]?.dischargeCondition ?? null);
-
-  const diagBody = Array.from({ length: 10 }, (_, k) => {
-    const left = k;          // 0..9
-    const right = k + 10;    // 10..19
-    return `<tr>
-      <td>${escapeHtml(slotName(left))}</td>
-      <td>${escapeHtml(slotCode(left))}</td>
-      <td>${escapeHtml(slotAdm(left))}</td>
-      <td>${escapeHtml(slotDis(left))}</td>
-      <td>${escapeHtml(slotName(right))}</td>
-      <td>${escapeHtml(slotCode(right))}</td>
-      <td>${escapeHtml(slotAdm(right))}</td>
-      <td>${escapeHtml(slotDis(right))}</td>
-    </tr>`;
-  }).join('');
+  const diagBody = diagRows.map(([name, code, adm, dis]) => `<tr>
+    <td>${escapeHtml(name)}</td>
+    <td>${escapeHtml(code)}</td>
+    <td>${escapeHtml(adm)}</td>
+    <td>${escapeHtml(dis)}</td>
+  </tr>`).join('');
 
   const diagGrid = `<table class="diag">
     <thead>
       <tr>
-        <th>出院诊断</th><th>疾病编码</th><th>入院病情</th><th>出院情况</th>
         <th>出院诊断</th><th>疾病编码</th><th>入院病情</th><th>出院情况</th>
       </tr>
     </thead>
@@ -559,9 +512,9 @@ function buildPrintHtml(r: MedicalRecord): string {
   th { font-weight: 600; width: 14%; background: #fff; text-align: left; }
   td { width: 36%; word-break: break-all; }
   thead th { text-align: center; }
-  /* 诊断网格：8 列等宽，行内字段直接读 / 不再走 14%/36% 字段:值规则 */
+  /* 诊断网格：4 列等宽（出院诊断/疾病编码/入院病情/出院情况） */
   table.diag { table-layout: fixed; }
-  table.diag th, table.diag td { width: 12.5%; text-align: left; padding: 4px 6px; }
+  table.diag th, table.diag td { width: 25%; text-align: left; padding: 4px 6px; }
   table.diag thead th { text-align: center; background: #f5f5f5; font-weight: 600; }
   /* 字典脚注：紧贴诊断网格下方，无外框、左右两列 */
   table.legend { border: none; margin-top: 4px; }
@@ -616,6 +569,7 @@ function reset() {
     return;
   }
   Object.assign(form, emptyRecord());
+  ensureMinDiagnoses();
   extractionConfidence.value = null;
   sourcePdfPath.value = null;
   setPdfBlobFromFile(null);
@@ -630,6 +584,7 @@ function parseRouteId(raw: unknown): number | null {
 }
 
 onMounted(() => {
+  ensureMinDiagnoses();
   const id = parseRouteId(route.query.id);
   if (id !== null) void loadRecord(id);
 });
@@ -790,7 +745,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="性别">
-            <el-select :prefix-icon="SelectIcon" v-model="form.gender" clearable placeholder="">
+            <el-select v-model="form.gender" clearable placeholder="">
               <el-option v-for="o in GENDER_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -859,7 +814,7 @@ watch(
       <el-row :gutter="16">
         <el-col :span="5">
           <el-form-item label="证件类型">
-            <el-select :prefix-icon="SelectIcon" v-model="form.idCardType" clearable>
+            <el-select v-model="form.idCardType" clearable>
               <el-option v-for="o in ID_CARD_TYPE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -876,7 +831,7 @@ watch(
         </el-col>
         <el-col :span="6">
           <el-form-item label="婚姻">
-            <el-select :prefix-icon="SelectIcon" v-model="form.maritalStatus" clearable>
+            <el-select v-model="form.maritalStatus" clearable>
               <el-option v-for="o in MARITAL_STATUS_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -944,7 +899,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="关系">
-            <el-select :prefix-icon="SelectIcon" v-model="form.contactRelation" clearable>
+            <el-select v-model="form.contactRelation" clearable>
               <el-option v-for="o in CONTACT_RELATION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -965,7 +920,7 @@ watch(
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="入院途径">
-            <el-select :prefix-icon="SelectIcon" v-model="form.admissionRoute" clearable>
+            <el-select v-model="form.admissionRoute" clearable>
               <el-option v-for="o in ADMISSION_ROUTE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -1030,12 +985,12 @@ watch(
         </el-col>
         <el-col :span="6">
           <el-form-item label="疾病编码">
-            <el-input v-model="form.outpatientDiagnosisCode" placeholder="ICD-10" clearable />
+            <el-input v-model="form.outpatientDiagnosisCode" clearable />
           </el-form-item>
         </el-col>
         <el-col :span="4">
           <el-form-item label="入院情况">
-            <el-select :prefix-icon="SelectIcon" v-model="form.outpatientAdmissionCondition" clearable>
+            <el-select v-model="form.outpatientAdmissionCondition" clearable>
               <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -1047,52 +1002,42 @@ watch(
         </el-col>
       </el-row>
 
-      <!-- 离院方式（用户列表中未列出但 schema 必有） -->
-      <el-row :gutter="16">
-        <el-col :span="6">
-          <el-form-item label="离院方式">
-            <el-select :prefix-icon="SelectIcon" v-model="form.dischargeStatus" clearable>
-              <el-option v-for="o in DISCHARGE_STATUS_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="18" />
-      </el-row>
-
-      <!-- 出院诊断网格：10 行 × 2 列；左列 row 1 = 主诊，其余 19 个槽位 = 其他诊断
-           填写顺序：从上到下、从左到右（左列填满后再填右列） -->
+      <!-- 出院诊断网格：4 列 × 动态行
+           行 1 = 主诊（绑 form.mainDiagnosis*，不可删除）
+           行 2..N = form.diagnoses[]；可点"+ 新增其他诊断"加新行 -->
       <table class="diag-grid">
         <thead>
           <tr>
-            <th>出院诊断</th><th>疾病编码</th><th>入院病情</th><th>出院情况</th>
-            <th>出院诊断</th><th>疾病编码</th><th>入院病情</th><th>出院情况</th>
+            <th>出院诊断</th>
+            <th>疾病编码</th>
+            <th>入院病情</th>
+            <th>出院情况</th>
+            <th class="op-col">操作</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in 10" :key="r">
-            <!-- ───── 左列：i = r - 1（0..9）───── -->
+          <!-- 主诊（固定第 1 行） -->
+          <tr>
             <td>
               <el-input
                 size="small"
-                :model-value="getSlot(r - 1).name"
-                @update:model-value="(v) => setSlot(r - 1, 'name', v)"
-                :placeholder="r === 1 ? '主要诊断' : ''"
+                :model-value="form.mainDiagnosisName"
+                @update:model-value="(v) => form.mainDiagnosisName = v || null"
+                placeholder="主要诊断"
               />
             </td>
             <td>
               <el-input
                 size="small"
-                :model-value="getSlot(r - 1).code"
-                @update:model-value="(v) => setSlot(r - 1, 'code', v)"
-                placeholder="ICD-10"
+                :model-value="form.mainDiagnosisCode"
+                @update:model-value="(v) => form.mainDiagnosisCode = v || null"
               />
             </td>
             <td>
               <el-select
                 size="small"
-                :prefix-icon="SelectIcon"
-                :model-value="getSlot(r - 1).admission"
-                @update:model-value="(v) => setSlot(r - 1, 'admission', v)"
+                :model-value="form.mainAdmissionCondition"
+                @update:model-value="(v) => form.mainAdmissionCondition = v || null"
                 clearable
               >
                 <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
@@ -1101,56 +1046,39 @@ watch(
             <td>
               <el-select
                 size="small"
-                :prefix-icon="SelectIcon"
-                :model-value="getSlot(r - 1).discharge"
-                @update:model-value="(v) => setSlot(r - 1, 'discharge', v)"
+                :model-value="form.mainDischargeCondition"
+                @update:model-value="(v) => form.mainDischargeCondition = v || null"
                 clearable
               >
                 <el-option v-for="o in DISCHARGE_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
             </td>
+            <td class="op-col"><span class="dim">主诊</span></td>
+          </tr>
 
-            <!-- ───── 右列：i = r + 9（10..19）───── -->
+          <!-- 其他诊断（动态行） -->
+          <tr v-for="(d, idx) in form.diagnoses" :key="idx">
+            <td><el-input size="small" v-model="d.diagnosisName" /></td>
+            <td><el-input size="small" v-model="d.diagnosisCode" /></td>
             <td>
-              <el-input
-                size="small"
-                :model-value="getSlot(r + 9).name"
-                @update:model-value="(v) => setSlot(r + 9, 'name', v)"
-              />
-            </td>
-            <td>
-              <el-input
-                size="small"
-                :model-value="getSlot(r + 9).code"
-                @update:model-value="(v) => setSlot(r + 9, 'code', v)"
-                placeholder="ICD-10"
-              />
-            </td>
-            <td>
-              <el-select
-                size="small"
-                :prefix-icon="SelectIcon"
-                :model-value="getSlot(r + 9).admission"
-                @update:model-value="(v) => setSlot(r + 9, 'admission', v)"
-                clearable
-              >
+              <el-select size="small" v-model="d.admissionCondition" clearable>
                 <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
             </td>
             <td>
-              <el-select
-                size="small"
-                :prefix-icon="SelectIcon"
-                :model-value="getSlot(r + 9).discharge"
-                @update:model-value="(v) => setSlot(r + 9, 'discharge', v)"
-                clearable
-              >
+              <el-select size="small" v-model="d.dischargeCondition" clearable>
                 <el-option v-for="o in DISCHARGE_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
+            </td>
+            <td class="op-col">
+              <el-button link type="danger" size="small" @click="removeOtherDiagnosis(idx)">删除</el-button>
             </td>
           </tr>
         </tbody>
       </table>
+      <div class="diag-actions">
+        <el-button size="small" @click="addOtherDiagnosis">+ 新增其他诊断</el-button>
+      </div>
       <div class="diag-legend">
         <span><b>入院病情：</b>1.有 &nbsp; 2.临床未确定 &nbsp; 3.情况不明 &nbsp; 4.无</span>
         <span><b>出院情况：</b>1.治愈 &nbsp; 2.好转 &nbsp; 3.未愈 &nbsp; 4.死亡 &nbsp; 5.其他</span>
@@ -1184,7 +1112,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="麻醉方式">
-            <el-select :prefix-icon="SelectIcon" v-model="form.anesthesiaMethod" clearable>
+            <el-select v-model="form.anesthesiaMethod" clearable>
               <el-option
                 v-for="o in ANESTHESIA_OPTIONS"
                 :key="o.value"
@@ -1494,8 +1422,9 @@ watch(
   text-align: center;
   padding: 6px 2px;
 }
-/* 8 列等宽分布 */
-.diag-grid th, .diag-grid td { width: 12.5%; }
+/* 4 主列等宽，操作列固定窄 */
+.diag-grid th, .diag-grid td { width: 24%; }
+.diag-grid .op-col { width: 4%; text-align: center; }
 .diag-grid :deep(.el-input__wrapper),
 .diag-grid :deep(.el-select__wrapper) {
   box-shadow: none;
@@ -1506,6 +1435,13 @@ watch(
 .diag-grid :deep(.el-input__inner),
 .diag-grid :deep(.el-select__placeholder) {
   font-size: 0.82rem;
+}
+.diag-actions {
+  margin: 6px 0 4px;
+}
+.diag-grid .op-col .dim {
+  color: #aaa;
+  font-size: 0.78rem;
 }
 .diag-legend {
   display: flex;
