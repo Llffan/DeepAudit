@@ -1435,9 +1435,9 @@ watch(
   border-radius: 8px;
   padding: 0.4rem 1.25rem 1rem;
 }
-/* 压缩 el-form-item 默认上下间距：默认 18px → 8px，让 14 行布局更紧凑 */
+/* el-form-item 行间距：8px → 12px，每行视觉节奏更舒展 */
 .record-form :deep(.el-form-item) {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 /* 诊断网格：10 行 × 2 列固定布局，左 4 列 + 右 4 列 */
 .diag-grid {
