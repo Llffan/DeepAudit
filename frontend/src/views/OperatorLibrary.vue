@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Edit, Delete, Switch, Cpu } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, Switch, Cpu, MagicStick } from '@element-plus/icons-vue'
 
 interface OperatorTemplate {
   id: number
@@ -204,6 +204,54 @@ async function save() {
   }
 }
 
+const generating = ref(false)
+
+async function generateBodyDsl() {
+  if (form.value.parameterNames.length === 0) {
+    ElMessage.warning('请先在上方选好参数列表')
+    return
+  }
+  if (!form.value.description.trim()) {
+    ElMessage.warning('请先填写说明，AI 需要理解算子要校验什么')
+    return
+  }
+  generating.value = true
+  try {
+    const res = await fetch('/api/operators/generate-body-dsl', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        parameterNames: form.value.parameterNames,
+        description: form.value.description,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      ElMessage.error((err as { message?: string }).message ?? `HTTP ${res.status}`)
+      return
+    }
+    const data = (await res.json()) as {
+      bodyDsl: unknown
+      errors: string[]
+      rawOutput: string | null
+      ok: boolean
+    }
+    if (!data.ok || !data.bodyDsl) {
+      ElMessage.error(data.errors?.[0] ?? 'AI 生成失败')
+      return
+    }
+    form.value.bodyDslText = JSON.stringify(data.bodyDsl, null, 2)
+    if (data.errors && data.errors.length > 0) {
+      // 非致命警告（比如 $ref 引用了列表外的参数）—— 已经填进编辑器，提示用户复核
+      ElMessage.warning(`AI 已生成，但有 ${data.errors.length} 条提示，请复核`)
+    } else {
+      ElMessage.success('AI 已生成 bodyDsl，请复核后保存')
+    }
+  } finally {
+    generating.value = false
+  }
+}
+
 async function toggle(t: OperatorTemplate) {
   await fetch(`/api/operators/${t.id}/toggle`, { method: 'PATCH' })
   await load()
@@ -356,6 +404,19 @@ function fmtTime(s: string | null) {
         </el-form-item>
 
         <el-form-item label="body_dsl">
+          <div class="dsl-toolbar">
+            <el-button
+              :icon="MagicStick"
+              :loading="generating"
+              size="small"
+              type="primary"
+              plain
+              @click="generateBodyDsl"
+            >
+              AI 推荐 bodyDsl
+            </el-button>
+            <span class="dsl-toolbar-hint">基于上方参数列表与说明让 LLM 推荐</span>
+          </div>
           <el-input
             v-model="form.bodyDslText"
             type="textarea"
@@ -401,6 +462,17 @@ function fmtTime(s: string | null) {
 .dim { color: #aaa; font-size: 0.82rem; }
 
 .param-tag { margin: 0 4px 4px 0; }
+
+.dsl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.dsl-toolbar-hint {
+  font-size: 0.78rem;
+  color: #999;
+}
 
 .op-form { padding: 0 1rem; }
 
