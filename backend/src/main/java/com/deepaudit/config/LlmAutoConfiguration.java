@@ -7,10 +7,8 @@ import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
-import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.googleai.GoogleAiEmbeddingModel;
-import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
-import dev.langchain4j.model.googleai.GoogleAiGeminiStreamingChatModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.service.AiServices;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,21 +27,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * Wires the three langchain4j model beans against Google AI Gemini
- * (T2.4 / plan §3.6):
+ * Wires langchain4j model beans against DeepSeek V3 via OpenAI-compatible API.
  *
  * <ul>
- *   <li>{@link ChatLanguageModel}          -- T2.5 NL->DSL, T4.3 violation explanation
- *   <li>{@link StreamingChatLanguageModel} -- T4.3 SSE token stream
- *   <li>{@link EmbeddingModel}             -- T2.4 rule + ICD dictionary embeddings
+ *   <li>{@link ChatLanguageModel}          -- NL->DSL (T2.5), violation explanation (T4.3)
+ *   <li>{@link StreamingChatLanguageModel} -- SSE token stream (T4.3)
  * </ul>
  *
  * <p>Beans are conditional on {@code deepaudit.llm.api-key} being non-empty.
- * When the env-var-backed key is absent (typical in unit tests / CI without
- * secrets), the beans are simply not registered and consumers receive an
- * empty {@code ObjectProvider} -- the rule engine continues to function;
- * only the LLM-dependent paths (embedding fill, NL rule generation, error
- * explanation) gracefully degrade.
+ * When absent the rule engine still runs; only NL rule generation, error
+ * explanation, and testing assistant gracefully degrade.
  */
 @Configuration
 @EnableConfigurationProperties(LlmProperties.class)
@@ -60,7 +53,8 @@ public class LlmAutoConfiguration {
     @Bean
     @ConditionalOnExpression(API_KEY_PRESENT)
     public ChatLanguageModel chatLanguageModel(LlmProperties props) {
-        return GoogleAiGeminiChatModel.builder()
+        return OpenAiChatModel.builder()
+            .baseUrl(props.getBaseUrl())
             .apiKey(props.getApiKey())
             .modelName(props.getChatModel())
             .temperature(0.0)
@@ -72,20 +66,12 @@ public class LlmAutoConfiguration {
     @Bean
     @ConditionalOnExpression(API_KEY_PRESENT)
     public StreamingChatLanguageModel streamingChatLanguageModel(LlmProperties props) {
-        return GoogleAiGeminiStreamingChatModel.builder()
+        return OpenAiStreamingChatModel.builder()
+            .baseUrl(props.getBaseUrl())
             .apiKey(props.getApiKey())
             .modelName(props.getChatModel())
             .temperature(0.0)
             .timeout(props.timeout())
-            .build();
-    }
-
-    @Bean
-    @ConditionalOnExpression(API_KEY_PRESENT)
-    public EmbeddingModel embeddingModel(LlmProperties props) {
-        return GoogleAiEmbeddingModel.builder()
-            .apiKey(props.getApiKey())
-            .modelName(props.getEmbeddingModel())
             .build();
     }
 
@@ -159,12 +145,12 @@ public class LlmAutoConfiguration {
     public ApplicationRunner llmStartupReport(LlmProperties props) {
         return args -> {
             if (props.hasApiKey()) {
-                log.info("LLM provider={} chatModel={} embeddingModel={} timeout={}s",
-                    props.getProvider(), props.getChatModel(),
-                    props.getEmbeddingModel(), props.getTimeoutSeconds());
+                log.info("LLM provider={} baseUrl={} chatModel={} timeout={}s",
+                    props.getProvider(), props.getBaseUrl(),
+                    props.getChatModel(), props.getTimeoutSeconds());
             } else {
-                log.warn("LLM api-key not configured -- chat / embedding beans will be absent. " +
-                         "Set GEMINI_API_KEY env var to enable NL->DSL, embeddings, and " +
+                log.warn("LLM api-key not configured -- chat beans will be absent. " +
+                         "Set DEEPSEEK_API_KEY env var to enable NL->DSL and " +
                          "violation explanation. The rule engine itself does NOT depend on this.");
             }
         };
