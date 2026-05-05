@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Refresh, Search, Plus, View, Document, DataLine } from '@element-plus/icons-vue';
+import { Refresh, Search, Plus, View, Document, DataLine, Select as SelectIcon } from '@element-plus/icons-vue';
 
 interface RecordListItem {
   id: number;
@@ -142,7 +142,7 @@ const tableHeight = computed(() => 'calc(100vh - 290px)');
 
     <el-card shadow="never" class="filter-card">
       <div class="filters">
-        <el-select v-model="status" class="filter-status" placeholder="状态">
+        <el-select :prefix-icon="SelectIcon" v-model="status" class="filter-status" placeholder="状态">
           <el-option v-for="o in STATUS_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
         </el-select>
         <el-input
