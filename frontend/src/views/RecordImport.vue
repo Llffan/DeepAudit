@@ -473,8 +473,14 @@ function buildPrintHtml(r: MedicalRecord): string {
     if (!d.diagnosisName || d.diagnosisName.trim() === '') continue;
     diagRows.push([d.diagnosisName, d.diagnosisCode, d.admissionCondition, d.dischargeCondition]);
   }
-  // 至少打印一行空白以保留视觉节奏（避免诊断网格塌成只有表头）
-  if (diagRows.length === 0) diagRows.push([null, null, null, null]);
+  // 出院诊断表固定 10 行：内容不足补空行，超过则截断（PDF 版式恒定，便于打印归档）
+  const DIAG_FIXED_ROWS = 10;
+  if (diagRows.length > DIAG_FIXED_ROWS) {
+    diagRows.length = DIAG_FIXED_ROWS;
+  }
+  while (diagRows.length < DIAG_FIXED_ROWS) {
+    diagRows.push([null, null, null, null]);
+  }
 
   const diagBody = diagRows.map(([name, code, adm, dis]) => `<tr>
     <td>${escapeHtml(name)}</td>
