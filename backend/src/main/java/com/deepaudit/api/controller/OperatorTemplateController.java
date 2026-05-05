@@ -66,6 +66,9 @@ public class OperatorTemplateController {
     ) {}
 
     public record GenerateResponse(
+        String suggestedCode,
+        String suggestedName,
+        String suggestedDescription,
         JsonNode bodyDsl,
         List<String> errors,
         String rawOutput,
@@ -135,7 +138,14 @@ public class OperatorTemplateController {
     public GenerateResponse generateBodyDsl(@RequestBody GenerateRequest req) {
         OperatorGeneratorService.Response r = generatorService.generate(
             req.parameterNames(), req.description());
-        return new GenerateResponse(r.bodyDsl(), r.errors(), r.rawOutput(), r.ok());
+        return new GenerateResponse(
+            r.suggestedCode(),
+            r.suggestedName(),
+            r.suggestedDescription(),
+            r.bodyDsl(),
+            r.errors(),
+            r.rawOutput(),
+            r.ok());
     }
 
     // -------------------------------------------------------------------------
