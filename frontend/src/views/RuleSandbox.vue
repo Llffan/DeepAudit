@@ -2,7 +2,7 @@
 import { ref, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { CircleCheck, CircleClose, Warning, Tools } from '@element-plus/icons-vue';
+import { CircleCheck, CircleClose, Warning, Tools, Select as SelectIcon } from '@element-plus/icons-vue';
 
 // ---------- preset DSLs ----------
 
@@ -229,7 +229,7 @@ function metaFor(r: DryRunResponse): ResultMeta {
         <template #header>
           <div class="col-header">
             <span class="col-title">规则 DSL</span>
-            <el-select v-model="dslPresetCode" size="small" style="width: 240px">
+            <el-select :prefix-icon="SelectIcon" v-model="dslPresetCode" size="small" style="width: 240px">
               <el-option
                 v-for="p in DSL_PRESETS"
                 :key="p.code"
@@ -253,7 +253,7 @@ function metaFor(r: DryRunResponse): ResultMeta {
         <template #header>
           <div class="col-header">
             <span class="col-title">病案数据</span>
-            <el-select v-model="recordPresetId" size="small" style="width: 240px">
+            <el-select :prefix-icon="SelectIcon" v-model="recordPresetId" size="small" style="width: 240px">
               <el-option
                 v-for="p in RECORD_PRESETS"
                 :key="p.id"

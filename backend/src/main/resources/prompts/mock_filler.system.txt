@@ -27,7 +27,6 @@
     "gender":                 string,        // "男" / "女"
     "birthDate":              string,        // yyyy-MM-dd
     "age":                    integer,
-    "ageDays":                integer|null,  // age==0 时 0-364，否则 null
     "idCardType":             string,        // 通常 "居民身份证"
     "idCardMasked":           string,        // 18 位身份证，中间 8 位替换为 "********"
     "nationality":            string,        // 通常 "中国"
@@ -36,8 +35,11 @@
     "occupation":             string,
     "birthPlace":             string,        // 例 "北京市朝阳区"
     "nativePlace":            string,        // 例 "山东济南"
-    "newbornBirthWeight":     integer|null,  // age==0 时填 2500-4500 (g)，否则 null
-    "newbornAdmissionWeight": integer|null,  // 同上
+
+    // 新生儿信息（1年内）—— age==0 时三者均填值，否则均为 null
+    "newbornBirthWeight":     integer|null,  // 出生体重 (g) 2500-4500
+    "newbornAdmissionWeight": integer|null,  // 入院体重 (g) 2400-4400
+    "ageDays":                integer|null,  // 不足1岁年龄(天) 0-364
 
     "currentAddress":         string,
     "currentPhone":           string,        // 11 位手机号

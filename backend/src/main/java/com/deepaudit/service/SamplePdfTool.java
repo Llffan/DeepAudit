@@ -148,14 +148,17 @@ public class SamplePdfTool {
 
         // V6 — 人口学扩展（idCardType 在 HQMS 标准中无专属字段，故不导出）
         put(fields, "GJ",           r.getNationality());
-        put(fields, "BZYZS_NL",     r.getAgeDays());
-        put(fields, "XSETZ",        r.getNewbornBirthWeight());
-        put(fields, "XSERYTZ",      r.getNewbornAdmissionWeight());
         put(fields, "CSD",          r.getBirthPlace());
         put(fields, "GG",           r.getNativePlace());
         put(fields, "MZ",           r.getEthnicity());
         put(fields, "ZY",           r.getOccupation());
         put(fields, "HY",           r.getMaritalStatus());
+
+        // V6 — 新生儿信息（1年内）：出生体重 / 入院体重 / 不足1岁年龄(天)
+        // 与前端表单"新生儿信息"区块字段集对齐。
+        put(fields, "XSETZ",        r.getNewbornBirthWeight());
+        put(fields, "XSERYTZ",      r.getNewbornAdmissionWeight());
+        put(fields, "BZYZS_NL",     r.getAgeDays());
 
         // V6 — 联系方式
         put(fields, "XZZ",          r.getCurrentAddress());

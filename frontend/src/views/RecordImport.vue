@@ -2,7 +2,7 @@
 import { ref, reactive, computed, watch, onBeforeUnmount, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, type FormInstance, type UploadRequestOptions } from 'element-plus';
-import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick, Files, ChatRound } from '@element-plus/icons-vue';
+import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick, Files, ChatRound, Select as SelectIcon } from '@element-plus/icons-vue';
 import TestingAssistantDialog from '@/components/TestingAssistantDialog.vue';
 import {
   emptyRecord,
@@ -534,7 +534,7 @@ watch(
         </el-col>
         <el-col :span="3">
           <el-form-item label="性别">
-            <el-select v-model="form.gender" clearable placeholder="">
+            <el-select :prefix-icon="SelectIcon" v-model="form.gender" clearable placeholder="">
               <el-option
                 v-for="o in GENDER_OPTIONS"
                 :key="o.value"
@@ -567,7 +567,7 @@ watch(
         </el-col>
         <el-col :span="3">
           <el-form-item label="证件类型">
-            <el-select v-model="form.idCardType" clearable>
+            <el-select :prefix-icon="SelectIcon" v-model="form.idCardType" clearable>
               <el-option
                 v-for="o in ID_CARD_TYPE_OPTIONS"
                 :key="o.value"
@@ -586,17 +586,6 @@ watch(
             />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
-          <el-form-item label="不足1岁(天)">
-            <el-input-number
-              v-model="form.ageDays"
-              :min="0"
-              :max="364"
-              :controls="false"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
         <el-col :span="6">
           <el-form-item label="国籍">
             <el-input v-model="form.nationality" placeholder="如 中国" clearable />
@@ -609,7 +598,7 @@ watch(
         </el-col>
         <el-col :span="6">
           <el-form-item label="婚姻">
-            <el-select v-model="form.maritalStatus" clearable>
+            <el-select :prefix-icon="SelectIcon" v-model="form.maritalStatus" clearable>
               <el-option
                 v-for="o in MARITAL_STATUS_OPTIONS"
                 :key="o.value"
@@ -636,7 +625,7 @@ watch(
         </el-col>
       </el-row>
 
-      <el-divider content-position="left">新生儿信息（age=0 时填写）</el-divider>
+      <el-divider content-position="left">新生儿信息（1年内）</el-divider>
       <el-row :gutter="16">
         <el-col :span="6">
           <el-form-item label="出生体重 (g)">
@@ -655,6 +644,17 @@ watch(
               v-model="form.newbornAdmissionWeight"
               :min="0"
               :max="10000"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="不足1岁(天)">
+            <el-input-number
+              v-model="form.ageDays"
+              :min="0"
+              :max="364"
               :controls="false"
               style="width: 100%"
             />
@@ -717,7 +717,7 @@ watch(
         </el-col>
         <el-col :span="3">
           <el-form-item label="关系">
-            <el-select v-model="form.contactRelation" clearable>
+            <el-select :prefix-icon="SelectIcon" v-model="form.contactRelation" clearable>
               <el-option
                 v-for="o in CONTACT_RELATION_OPTIONS"
                 :key="o.value"
@@ -785,7 +785,7 @@ watch(
         </el-col>
         <el-col :span="6">
           <el-form-item label="入院途径">
-            <el-select v-model="form.admissionRoute" clearable>
+            <el-select :prefix-icon="SelectIcon" v-model="form.admissionRoute" clearable>
               <el-option
                 v-for="o in ADMISSION_ROUTE_OPTIONS"
                 :key="o.value"
@@ -797,7 +797,7 @@ watch(
         </el-col>
         <el-col :span="6">
           <el-form-item label="离院方式">
-            <el-select v-model="form.dischargeStatus" clearable>
+            <el-select :prefix-icon="SelectIcon" v-model="form.dischargeStatus" clearable>
               <el-option
                 v-for="o in DISCHARGE_STATUS_OPTIONS"
                 :key="o.value"
@@ -865,7 +865,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="ICD 版本">
-            <el-select v-model="form.mainDiagnosisIcdVer" clearable>
+            <el-select :prefix-icon="SelectIcon" v-model="form.mainDiagnosisIcdVer" clearable>
               <el-option
                 v-for="o in ICD_VER_OPTIONS"
                 :key="o.value"
@@ -877,7 +877,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="入院病况">
-            <el-select v-model="form.mainAdmissionCondition" clearable>
+            <el-select :prefix-icon="SelectIcon" v-model="form.mainAdmissionCondition" clearable>
               <el-option
                 v-for="o in ADMISSION_CONDITION_OPTIONS"
                 :key="o.value"
@@ -890,7 +890,7 @@ watch(
 
         <el-col :span="4">
           <el-form-item label="出院情况">
-            <el-select v-model="form.mainDischargeCondition" clearable>
+            <el-select :prefix-icon="SelectIcon" v-model="form.mainDischargeCondition" clearable>
               <el-option
                 v-for="o in DISCHARGE_CONDITION_OPTIONS"
                 :key="o.value"
@@ -932,7 +932,7 @@ watch(
         </el-table-column>
         <el-table-column label="ICD" width="120">
           <template #default="{ row }">
-            <el-select v-model="row.icdVersion" clearable size="small">
+            <el-select :prefix-icon="SelectIcon" v-model="row.icdVersion" clearable size="small">
               <el-option
                 v-for="o in ICD_VER_OPTIONS"
                 :key="o.value"
@@ -944,7 +944,7 @@ watch(
         </el-table-column>
         <el-table-column label="入院病况" width="130">
           <template #default="{ row }">
-            <el-select v-model="row.admissionCondition" clearable size="small">
+            <el-select :prefix-icon="SelectIcon" v-model="row.admissionCondition" clearable size="small">
               <el-option
                 v-for="o in ADMISSION_CONDITION_OPTIONS"
                 :key="o.value"
@@ -956,7 +956,7 @@ watch(
         </el-table-column>
         <el-table-column label="出院情况" width="120">
           <template #default="{ row }">
-            <el-select v-model="row.dischargeCondition" clearable size="small">
+            <el-select :prefix-icon="SelectIcon" v-model="row.dischargeCondition" clearable size="small">
               <el-option
                 v-for="o in DISCHARGE_CONDITION_OPTIONS"
                 :key="o.value"
@@ -1012,7 +1012,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="麻醉方式">
-            <el-select v-model="form.anesthesiaMethod" clearable>
+            <el-select :prefix-icon="SelectIcon" v-model="form.anesthesiaMethod" clearable>
               <el-option
                 v-for="o in ANESTHESIA_OPTIONS"
                 :key="o.value"

@@ -80,14 +80,17 @@ V1_TO_HQMS: dict[str, str] = {
 
     # V6 — Demographics
     "nationality": "GJ",
-    "ageDays": "BZYZS_NL",
-    "newbornBirthWeight": "XSETZ",
-    "newbornAdmissionWeight": "XSERYTZ",
     "birthPlace": "CSD",
     "nativePlace": "GG",
     "ethnicity": "MZ",
     "occupation": "ZY",
     "maritalStatus": "HY",
+
+    # V6 — Newborn (1年内): birth/admission weight + age in days
+    # ageDays 在前端归"新生儿信息"区块，故映射也放这里保持一致
+    "newbornBirthWeight": "XSETZ",
+    "newbornAdmissionWeight": "XSERYTZ",
+    "ageDays": "BZYZS_NL",
 
     # V6 — Address & contacts
     "currentAddress": "XZZ",

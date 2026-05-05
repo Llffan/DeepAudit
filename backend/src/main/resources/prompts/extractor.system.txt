@@ -20,7 +20,6 @@
     "gender":                 string|null,   // 男 / 女 / 未知
     "birthDate":              string|null,   // yyyy-MM-dd
     "age":                    integer|null,
-    "ageDays":                integer|null,  // 不足1周岁的年龄(天)；满1岁则 null
     "idCardType":             string|null,   // 居民身份证 / 护照 / 军官证 / 港澳通行证 / 台胞证 / 其他
     "idCardMasked":           string|null,   // 证件号；如能识别身份证号请用 X 遮罩中间 8 位再输出
     "nationality":            string|null,   // 国籍，如 中国
@@ -29,8 +28,11 @@
     "occupation":             string|null,
     "birthPlace":             string|null,   // 出生地（省市县）
     "nativePlace":            string|null,   // 籍贯（省市）
+
+    // 新生儿信息（1年内）—— age==0 时填 ageDays 与新生儿体重；满1岁均为 null
     "newbornBirthWeight":     integer|null,  // 新生儿出生体重，单位 g
     "newbornAdmissionWeight": integer|null,  // 新生儿入院体重，单位 g
+    "ageDays":                integer|null,  // 不足1周岁的年龄(天)；满1岁则 null
 
     // 联系信息
     "currentAddress":         string|null,   // 现住地址
