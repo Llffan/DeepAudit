@@ -7,7 +7,9 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * 62-field whitelist for the rule DSL (V1 + V6 HQMS + V7 main-diag attrs + V8 outpatient extras).
+ * Whitelist for the rule DSL (V1 + V6 HQMS + V7 main-diag attrs + V8 outpatient
+ * extras + V9 supplementary). V9 dropped the 9 operation/cost fields and added
+ * 21 supplementary 损伤/病理/过敏/血型/医生/质控 fields.
  *
  * <p>Acts as both:
  * <ul>
@@ -56,18 +58,36 @@ public final class FieldAccessor {
         Map.entry("otherDiagnosisCount",   MedicalRecordMain::getOtherDiagnosisCount),
         Map.entry("pathologicalDiagnosis", MedicalRecordMain::getPathologicalDiagnosis),
 
-        // Operations (5)
-        Map.entry("mainOperationCode",     MedicalRecordMain::getMainOperationCode),
-        Map.entry("mainOperationName",     MedicalRecordMain::getMainOperationName),
-        Map.entry("operationDate",         MedicalRecordMain::getOperationDate),
-        Map.entry("operator",              MedicalRecordMain::getOperator),
-        Map.entry("anesthesiaMethod",      MedicalRecordMain::getAnesthesiaMethod),
+        // V9 supplementary — 损伤、中毒（2）
+        Map.entry("injuryPoisoningCause",         MedicalRecordMain::getInjuryPoisoningCause),
+        Map.entry("injuryPoisoningCode",          MedicalRecordMain::getInjuryPoisoningCode),
 
-        // Cost categories (4)
-        Map.entry("totalCost",             MedicalRecordMain::getTotalCost),
-        Map.entry("drugCost",              MedicalRecordMain::getDrugCost),
-        Map.entry("operationCost",         MedicalRecordMain::getOperationCost),
-        Map.entry("medicalServiceCost",    MedicalRecordMain::getMedicalServiceCost),
+        // V9 supplementary — 病理扩展（2）
+        Map.entry("pathologicalDiagnosisCode",    MedicalRecordMain::getPathologicalDiagnosisCode),
+        Map.entry("pathologyNumber",              MedicalRecordMain::getPathologyNumber),
+
+        // V9 supplementary — 过敏 / 尸检 / 血型（5）
+        Map.entry("drugAllergy",                  MedicalRecordMain::getDrugAllergy),
+        Map.entry("allergyDrugs",                 MedicalRecordMain::getAllergyDrugs),
+        Map.entry("autopsy",                      MedicalRecordMain::getAutopsy),
+        Map.entry("bloodType",                    MedicalRecordMain::getBloodType),
+        Map.entry("rhBloodType",                  MedicalRecordMain::getRhBloodType),
+
+        // V9 supplementary — 医生（8）
+        Map.entry("departmentDirector",           MedicalRecordMain::getDepartmentDirector),
+        Map.entry("chiefPhysician",               MedicalRecordMain::getChiefPhysician),
+        Map.entry("attendingPhysician",           MedicalRecordMain::getAttendingPhysician),
+        Map.entry("residentPhysician",            MedicalRecordMain::getResidentPhysician),
+        Map.entry("responsibleNurse",             MedicalRecordMain::getResponsibleNurse),
+        Map.entry("traineePhysician",             MedicalRecordMain::getTraineePhysician),
+        Map.entry("internPhysician",              MedicalRecordMain::getInternPhysician),
+        Map.entry("coder",                        MedicalRecordMain::getCoder),
+
+        // V9 supplementary — 质控（4）
+        Map.entry("recordQuality",                MedicalRecordMain::getRecordQuality),
+        Map.entry("qcPhysician",                  MedicalRecordMain::getQcPhysician),
+        Map.entry("qcNurse",                      MedicalRecordMain::getQcNurse),
+        Map.entry("qcDate",                       MedicalRecordMain::getQcDate),
 
         // Source / extraction metadata (3)
         Map.entry("sourceHospital",        MedicalRecordMain::getSourceHospital),

@@ -13,9 +13,9 @@ import java.util.List;
  * a new row is inserted with the supplied {@code status} (typically
  * {@code "draft"} or {@code "confirmed"}).
  *
- * <p>57 curated business fields after V6 HQMS expansion. {@code extra} is
- * optional — when null the upsert leaves the existing extra row untouched
- * (or writes empty {@code {}} for new rows).
+ * <p>V6 HQMS expansion + V9 supplementary fields（损伤/病理/过敏/血型/医生/
+ * 质控）；V9 同时移除了原"主要手术 + 费用"两块共 9 个字段。{@code extra}
+ * 可选：null 时不动现有 extra 行（新行写空 {@code {}}）。
  */
 public record MedicalRecordSaveRequest(
     Long id,
@@ -84,18 +84,36 @@ public record MedicalRecordSaveRequest(
     Integer otherDiagnosisCount,
     String pathologicalDiagnosis,
 
-    // Operations (5)
-    String mainOperationCode,
-    String mainOperationName,
-    LocalDate operationDate,
-    String operator,
-    String anesthesiaMethod,
+    // V9 supplementary — 损伤、中毒（2）
+    String injuryPoisoningCause,
+    String injuryPoisoningCode,
 
-    // Cost (4)
-    BigDecimal totalCost,
-    BigDecimal drugCost,
-    BigDecimal operationCost,
-    BigDecimal medicalServiceCost,
+    // V9 supplementary — 病理扩展（2）
+    String pathologicalDiagnosisCode,
+    String pathologyNumber,
+
+    // V9 supplementary — 过敏 / 尸检 / 血型（5）
+    String drugAllergy,
+    String allergyDrugs,
+    String autopsy,
+    String bloodType,
+    String rhBloodType,
+
+    // V9 supplementary — 医生（8）
+    String departmentDirector,
+    String chiefPhysician,
+    String attendingPhysician,
+    String residentPhysician,
+    String responsibleNurse,
+    String traineePhysician,
+    String internPhysician,
+    String coder,
+
+    // V9 supplementary — 质控（4）
+    String recordQuality,
+    String qcPhysician,
+    String qcNurse,
+    LocalDate qcDate,
 
     // Source / extraction
     String sourceHospital,

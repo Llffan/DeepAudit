@@ -1,5 +1,10 @@
-// Mirrors V1 + V6 + V7 `medical_record_main` columns + diagnosis subtable.
+// Mirrors V1 + V6 + V7 + V8 + V9 `medical_record_main` columns + diagnosis subtable.
 // camelCase per Spring Data JPA SnakeCaseStrategy default mapping.
+//
+// V9 重构（2026-05-05）：
+//  - DROP 主要手术 5 字段（mainOperationCode/Name/operationDate/operator/anesthesiaMethod）
+//  - DROP 费用 4 字段（totalCost/drugCost/operationCost/medicalServiceCost）
+//  - ADD 损伤中毒外因 / 病理诊断扩展 / 药物过敏 / 血型 / 8 类医生 / 质控 共 21 个字段
 
 export interface Diagnosis {
   diagType: 'main' | 'other';
@@ -90,23 +95,43 @@ export interface MedicalRecord {
   mainDischargeCondition: string | null;
   mainNote: string | null;
   otherDiagnosisCount: number | null;
-  pathologicalDiagnosis: string | null;
 
   // V7 — Other diagnoses (subtable rows; main diagnosis NOT included here)
   diagnoses: Diagnosis[];
 
-  // Operations (5)
-  mainOperationCode: string | null;
-  mainOperationName: string | null;
-  operationDate: string | null;
-  operator: string | null;
-  anesthesiaMethod: string | null;
+  // ───── V9 supplementary fields（非主表主要字段，不参与缺项检查）─────
 
-  // Cost (4)
-  totalCost: number | null;
-  drugCost: number | null;
-  operationCost: number | null;
-  medicalServiceCost: number | null;
+  // 损伤、中毒（2）
+  injuryPoisoningCause: string | null;
+  injuryPoisoningCode: string | null;
+
+  // 病理（3：诊断名沿用 V1 旧列 pathologicalDiagnosis，新增编码与病理号）
+  pathologicalDiagnosis: string | null;
+  pathologicalDiagnosisCode: string | null;
+  pathologyNumber: string | null;
+
+  // 过敏 / 尸检 / 血型（5）
+  drugAllergy: string | null;       // 无 / 有
+  allergyDrugs: string | null;
+  autopsy: string | null;           // 是 / 否
+  bloodType: string | null;         // A / B / O / AB / 不详 / 未查
+  rhBloodType: string | null;       // 阴 / 阳 / 不详 / 未查
+
+  // 医生（8）
+  departmentDirector: string | null;  // 科主任
+  chiefPhysician: string | null;      // 主(副主)任医生
+  attendingPhysician: string | null;  // 主治医生
+  residentPhysician: string | null;   // 住院医生
+  responsibleNurse: string | null;    // 责任护士
+  traineePhysician: string | null;    // 进修医生
+  internPhysician: string | null;     // 实习医生
+  coder: string | null;               // 编码员
+
+  // 质控（4）
+  recordQuality: string | null;       // 甲 / 乙 / 丙
+  qcPhysician: string | null;
+  qcNurse: string | null;
+  qcDate: string | null;
 
   // Metadata
   status?: 'draft' | 'confirmed' | 'checked';
@@ -166,17 +191,30 @@ export function emptyRecord(): MedicalRecord {
     mainDischargeCondition: null,
     mainNote: null,
     otherDiagnosisCount: null,
-    pathologicalDiagnosis: null,
     diagnoses: [],
-    mainOperationCode: null,
-    mainOperationName: null,
-    operationDate: null,
-    operator: null,
-    anesthesiaMethod: null,
-    totalCost: null,
-    drugCost: null,
-    operationCost: null,
-    medicalServiceCost: null,
+    // V9 supplementary
+    injuryPoisoningCause: null,
+    injuryPoisoningCode: null,
+    pathologicalDiagnosis: null,
+    pathologicalDiagnosisCode: null,
+    pathologyNumber: null,
+    drugAllergy: null,
+    allergyDrugs: null,
+    autopsy: null,
+    bloodType: null,
+    rhBloodType: null,
+    departmentDirector: null,
+    chiefPhysician: null,
+    attendingPhysician: null,
+    residentPhysician: null,
+    responsibleNurse: null,
+    traineePhysician: null,
+    internPhysician: null,
+    coder: null,
+    recordQuality: null,
+    qcPhysician: null,
+    qcNurse: null,
+    qcDate: null,
     sourceHospital: null,
   };
 }
@@ -211,15 +249,6 @@ export const DISCHARGE_STATUS_OPTIONS: Option[] = [
   { value: '非医嘱离院', label: '非医嘱离院' },
   { value: '死亡', label: '死亡' },
   { value: '其他', label: '其他' },
-];
-
-export const ANESTHESIA_OPTIONS: Option[] = [
-  { value: '全身麻醉', label: '全身麻醉' },
-  { value: '椎管内麻醉', label: '椎管内麻醉' },
-  { value: '局部麻醉', label: '局部麻醉' },
-  { value: '神经阻滞', label: '神经阻滞' },
-  { value: '其他', label: '其他' },
-  { value: '无', label: '无' },
 ];
 
 export const ID_CARD_TYPE_OPTIONS: Option[] = [
@@ -265,7 +294,45 @@ export const CONTACT_RELATION_OPTIONS: Option[] = [
   { value: '其他', label: '其他' },
 ];
 
-// Business fields used for completeness progress (excludes id/audit/source).
+// V9 supplementary: 药物过敏（无/有）
+export const DRUG_ALLERGY_OPTIONS: Option[] = [
+  { value: '无', label: '1 无' },
+  { value: '有', label: '2 有' },
+];
+
+// V9 supplementary: 死亡患者尸检（是/否）
+export const AUTOPSY_OPTIONS: Option[] = [
+  { value: '是', label: '1 是' },
+  { value: '否', label: '2 否' },
+];
+
+// V9 supplementary: 血型 ABO
+export const BLOOD_TYPE_OPTIONS: Option[] = [
+  { value: 'A',    label: '1 A' },
+  { value: 'B',    label: '2 B' },
+  { value: 'O',    label: '3 O' },
+  { value: 'AB',   label: '4 AB' },
+  { value: '不详', label: '5 不详' },
+  { value: '未查', label: '6 未查' },
+];
+
+// V9 supplementary: Rh 血型
+export const RH_OPTIONS: Option[] = [
+  { value: '阴',   label: '1 阴' },
+  { value: '阳',   label: '2 阳' },
+  { value: '不详', label: '3 不详' },
+  { value: '未查', label: '4 未查' },
+];
+
+// V9 supplementary: 病案质量
+export const RECORD_QUALITY_OPTIONS: Option[] = [
+  { value: '甲', label: '1 甲' },
+  { value: '乙', label: '2 乙' },
+  { value: '丙', label: '3 丙' },
+];
+
+// 主表主要字段：用于"病案质控缺项检查"。仅包含 V8 及之前的核心首页字段；
+// V9 引入的损伤中毒/病理扩展/过敏血型/医生/质控等字段为补充字段，不在此列表。
 export const BUSINESS_FIELDS: (keyof MedicalRecord)[] = [
   'recordNo', 'name', 'gender', 'birthDate', 'age', 'idCardMasked',
   'nationality', 'ethnicity', 'maritalStatus', 'occupation',
@@ -282,8 +349,5 @@ export const BUSINESS_FIELDS: (keyof MedicalRecord)[] = [
   'outpatientAdmissionCondition', 'confirmedAfterAdmissionDate',
   'mainDiagnosisCode', 'mainDiagnosisName', 'mainDiagnosisIcdVer',
   'mainAdmissionCondition', 'mainDischargeCondition', 'mainNote',
-  'otherDiagnosisCount', 'pathologicalDiagnosis',
-  'mainOperationCode', 'mainOperationName', 'operationDate', 'operator',
-  'anesthesiaMethod',
-  'totalCost', 'drugCost', 'operationCost', 'medicalServiceCost',
+  'otherDiagnosisCount',
 ];

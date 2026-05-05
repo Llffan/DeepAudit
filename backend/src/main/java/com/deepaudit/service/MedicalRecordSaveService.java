@@ -258,16 +258,36 @@ public class MedicalRecordSaveService {
         m.setOtherDiagnosisCount(r.otherDiagnosisCount());
         m.setPathologicalDiagnosis(r.pathologicalDiagnosis());
 
-        m.setMainOperationCode(r.mainOperationCode());
-        m.setMainOperationName(r.mainOperationName());
-        m.setOperationDate(r.operationDate());
-        m.setOperator(r.operator());
-        m.setAnesthesiaMethod(r.anesthesiaMethod());
+        // V9 supplementary — 损伤、中毒
+        m.setInjuryPoisoningCause(r.injuryPoisoningCause());
+        m.setInjuryPoisoningCode(r.injuryPoisoningCode());
 
-        m.setTotalCost(r.totalCost());
-        m.setDrugCost(r.drugCost());
-        m.setOperationCost(r.operationCost());
-        m.setMedicalServiceCost(r.medicalServiceCost());
+        // V9 supplementary — 病理扩展
+        m.setPathologicalDiagnosisCode(r.pathologicalDiagnosisCode());
+        m.setPathologyNumber(r.pathologyNumber());
+
+        // V9 supplementary — 过敏 / 尸检 / 血型
+        m.setDrugAllergy(r.drugAllergy());
+        m.setAllergyDrugs(r.allergyDrugs());
+        m.setAutopsy(r.autopsy());
+        m.setBloodType(r.bloodType());
+        m.setRhBloodType(r.rhBloodType());
+
+        // V9 supplementary — 医生
+        m.setDepartmentDirector(r.departmentDirector());
+        m.setChiefPhysician(r.chiefPhysician());
+        m.setAttendingPhysician(r.attendingPhysician());
+        m.setResidentPhysician(r.residentPhysician());
+        m.setResponsibleNurse(r.responsibleNurse());
+        m.setTraineePhysician(r.traineePhysician());
+        m.setInternPhysician(r.internPhysician());
+        m.setCoder(r.coder());
+
+        // V9 supplementary — 质控
+        m.setRecordQuality(r.recordQuality());
+        m.setQcPhysician(r.qcPhysician());
+        m.setQcNurse(r.qcNurse());
+        m.setQcDate(r.qcDate());
 
         m.setSourceHospital(r.sourceHospital());
         m.setSourcePdfPath(r.sourcePdfPath());

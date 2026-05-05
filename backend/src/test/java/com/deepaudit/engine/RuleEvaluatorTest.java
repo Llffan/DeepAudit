@@ -30,15 +30,16 @@ class RuleEvaluatorTest {
         new CustomOperatorRegistry(null),
         new IcdDictCache(null));
 
-    /** R001 -- 主手术编码非空时，手术医生与手术日期不能为空（V1 seed）. */
+    /** R-PATH -- 病理诊断非空时，病理编码与病理号不能为空（V9 等价示例，
+     *           原 R001 引用的手术字段已在 V9 下线）. */
     private static final String R001 = """
         {
-          "when":   { "op": "notNull", "field": "mainOperationCode" },
+          "when":   { "op": "notNull", "field": "pathologicalDiagnosis" },
           "assert": {
             "op": "and",
             "args": [
-              { "op": "notNull", "field": "operator" },
-              { "op": "notNull", "field": "operationDate" }
+              { "op": "notNull", "field": "pathologicalDiagnosisCode" },
+              { "op": "notNull", "field": "pathologyNumber" }
             ]
           }
         }
@@ -66,10 +67,10 @@ class RuleEvaluatorTest {
     // ---------- R001 (guarded, completeness) ----------
 
     @Test
-    @DisplayName("R001 passes when guard is false (no main operation present)")
+    @DisplayName("R001 passes when guard is false (no pathology diagnosis present)")
     void r001_passes_when_guard_false() throws Exception {
         MedicalRecordMain r = new MedicalRecordMain();
-        // mainOperationCode null -> guard false -> rule does not apply
+        // pathologicalDiagnosis null -> guard false -> rule does not apply
         assertTrue(eval(R001, r));
     }
 
@@ -77,29 +78,29 @@ class RuleEvaluatorTest {
     @DisplayName("R001 passes when guard true and both required fields present")
     void r001_passes_when_guard_true_and_assert_satisfied() throws Exception {
         MedicalRecordMain r = new MedicalRecordMain();
-        r.setMainOperationCode("0392");
-        r.setOperator("张三");
-        r.setOperationDate(LocalDate.of(2026, 4, 1));
+        r.setPathologicalDiagnosis("肾结石");
+        r.setPathologicalDiagnosisCode("N20.0");
+        r.setPathologyNumber("P20260402-017");
         assertTrue(eval(R001, r));
     }
 
     @Test
-    @DisplayName("R001 hits when guard true and operator missing")
-    void r001_hits_when_operator_missing() throws Exception {
+    @DisplayName("R001 hits when guard true and pathology code missing")
+    void r001_hits_when_code_missing() throws Exception {
         MedicalRecordMain r = new MedicalRecordMain();
-        r.setMainOperationCode("0392");
-        r.setOperator(null);
-        r.setOperationDate(LocalDate.of(2026, 4, 1));
+        r.setPathologicalDiagnosis("肾结石");
+        r.setPathologicalDiagnosisCode(null);
+        r.setPathologyNumber("P20260402-017");
         assertFalse(eval(R001, r));
     }
 
     @Test
-    @DisplayName("R001 hits when guard true and operationDate missing")
-    void r001_hits_when_operation_date_missing() throws Exception {
+    @DisplayName("R001 hits when guard true and pathology number missing")
+    void r001_hits_when_number_missing() throws Exception {
         MedicalRecordMain r = new MedicalRecordMain();
-        r.setMainOperationCode("0392");
-        r.setOperator("张三");
-        r.setOperationDate(null);
+        r.setPathologicalDiagnosis("肾结石");
+        r.setPathologicalDiagnosisCode("N20.0");
+        r.setPathologyNumber(null);
         assertFalse(eval(R001, r));
     }
 
@@ -145,17 +146,18 @@ class RuleEvaluatorTest {
         assertTrue(eval("{\"op\":\"eq\",\"field\":\"age\",\"rhs\":30}", r));
         assertFalse(eval("{\"op\":\"eq\",\"field\":\"age\",\"rhs\":31}", r));
 
-        r.setTotalCost(new BigDecimal("999.50"));
-        assertTrue(eval("{\"op\":\"eq\",\"field\":\"totalCost\",\"rhs\":999.50}", r));
+        // BigDecimal coverage uses extractionConfidence after V9 dropped the cost columns
+        r.setExtractionConfidence(new BigDecimal("0.85"));
+        assertTrue(eval("{\"op\":\"eq\",\"field\":\"extractionConfidence\",\"rhs\":0.85}", r));
     }
 
     @Test
     @DisplayName("gt works on BigDecimal field vs JSON int rhs")
     void gt_decimal_field_vs_int_rhs() throws Exception {
         MedicalRecordMain r = new MedicalRecordMain();
-        r.setTotalCost(new BigDecimal("999.50"));
-        assertTrue(eval("{\"op\":\"gt\",\"field\":\"totalCost\",\"rhs\":500}", r));
-        assertFalse(eval("{\"op\":\"gt\",\"field\":\"totalCost\",\"rhs\":1000}", r));
+        r.setExtractionConfidence(new BigDecimal("0.85"));
+        assertTrue(eval("{\"op\":\"gt\",\"field\":\"extractionConfidence\",\"rhs\":0}", r));
+        assertFalse(eval("{\"op\":\"gt\",\"field\":\"extractionConfidence\",\"rhs\":1}", r));
     }
 
     @Test
@@ -170,8 +172,8 @@ class RuleEvaluatorTest {
     @DisplayName("not inverts inner expression")
     void not_inverts() throws Exception {
         MedicalRecordMain r = new MedicalRecordMain();
-        // operator is null -> notNull(operator) is false -> not(notNull) is true
-        assertTrue(eval("{\"op\":\"not\",\"arg\":{\"op\":\"notNull\",\"field\":\"operator\"}}", r));
+        // pathologicalDiagnosis is null -> notNull(...) is false -> not(notNull) is true
+        assertTrue(eval("{\"op\":\"not\",\"arg\":{\"op\":\"notNull\",\"field\":\"pathologicalDiagnosis\"}}", r));
     }
 
     @Test

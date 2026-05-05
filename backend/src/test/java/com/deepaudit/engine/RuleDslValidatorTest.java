@@ -35,13 +35,14 @@ class RuleDslValidatorTest {
     // ---------- happy path: seed rules round-trip cleanly ----------
 
     @Test
-    @DisplayName("R001 (guarded notNull) validates without error")
+    @DisplayName("R001 (guarded notNull on V9 pathology fields) validates without error")
     void r001_valid() throws Exception {
+        // V9 等价示例：原 R001 引用的手术字段在 V9 已下线
         String dsl = """
-            { "when":   { "op": "notNull", "field": "mainOperationCode" },
+            { "when":   { "op": "notNull", "field": "pathologicalDiagnosis" },
               "assert": { "op": "and", "args": [
-                  { "op": "notNull", "field": "operator" },
-                  { "op": "notNull", "field": "operationDate" } ] } }
+                  { "op": "notNull", "field": "pathologicalDiagnosisCode" },
+                  { "op": "notNull", "field": "pathologyNumber" } ] } }
             """;
         ValidationResult r = validate(dsl);
         assertTrue(r.ok(), () -> "Expected ok, got errors: " + r.errors());

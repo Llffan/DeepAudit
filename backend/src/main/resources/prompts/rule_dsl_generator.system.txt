@@ -37,7 +37,7 @@ FIELD GUIDANCE
 - errorMessageTemplate: directly state what is wrong, in Chinese. Use
   {{fieldName}} to embed the offending value. Examples:
     "年龄 {{age}} 异常，超过 120 岁，请人工确认"
-    "主手术编码已填写但手术医生 {{operator}} 或手术日期 {{operationDate}} 缺失"
+    "病理诊断 {{pathologicalDiagnosis}} 已填写但病理编码 {{pathologicalDiagnosisCode}} 缺失"
 
 GRAMMAR (for the "expression" field)
 
@@ -67,16 +67,16 @@ Boolean operators (yield true/false):
               -- true iff the field's value is present in icd_dict for the given category.
               -- Use for "编码合法性 / 编码标准化" rules (dimension=standardization).
               -- Always guard with notNull, e.g.
-              -- {"when": {"op":"notNull","field":"mainOperationCode"},
-              --  "assert": {"op":"icdCodeExists","field":"mainOperationCode","category":"icd9cm3"}}
+              -- {"when": {"op":"notNull","field":"mainDiagnosisCode"},
+              --  "assert": {"op":"icdCodeExists","field":"mainDiagnosisCode","category":"icd10"}}
   icdNameMatches (code-name consistency, DB-backed):
               {"op": "icdNameMatches", "codeField": "<codeField>", "nameField": "<nameField>", "category": "icd9cm3" | "icd10"}
               -- true iff the dictionary's standard name for codeField equals nameField (whitespace collapsed).
               -- Returns true when the code is missing from the dictionary (delegated to icdCodeExists).
               -- Use for "编码-名称一致性" rules (dimension=consistency).
               -- Guard with notNull on BOTH fields, e.g.
-              -- {"when":{"op":"and","args":[{"op":"notNull","field":"mainOperationCode"},{"op":"notNull","field":"mainOperationName"}]},
-              --  "assert":{"op":"icdNameMatches","codeField":"mainOperationCode","nameField":"mainOperationName","category":"icd9cm3"}}
+              -- {"when":{"op":"and","args":[{"op":"notNull","field":"mainDiagnosisCode"},{"op":"notNull","field":"mainDiagnosisName"}]},
+              --  "assert":{"op":"icdNameMatches","codeField":"mainDiagnosisCode","nameField":"mainDiagnosisName","category":"icd10"}}
 
 Value expressions (allowed only in rhs / from / to slots):
   Literal:           120, "M", true, "2026-01-01"
@@ -87,15 +87,27 @@ Value expressions (allowed only in rhs / from / to slots):
 Custom operator call (boolean expression):
   {"op": "custom", "code": "<operatorCode>", "args": {"paramName": "fieldName", ...}}
 
-ALLOWED FIELD NAMES (camelCase, exactly these 30 -- reject anything else):
+ALLOWED FIELD NAMES (camelCase -- reject anything else):
 
+  -- Identity / 主表主要字段（用于质控缺项检查）
   recordNo, name, gender, birthDate, age, idCardMasked,
   admissionDate, dischargeDate, lengthOfStay, admissionDept, dischargeDept,
   admissionRoute, dischargeStatus,
   mainDiagnosisCode, mainDiagnosisName, mainDiagnosisIcdVer,
+  mainAdmissionCondition, mainDischargeCondition, mainNote,
   otherDiagnosisCount, pathologicalDiagnosis,
-  mainOperationCode, mainOperationName, operationDate, operator, anesthesiaMethod,
-  totalCost, drugCost, operationCost, medicalServiceCost,
+  outpatientDiagnosis, outpatientDiagnosisCode,
+  outpatientAdmissionCondition, confirmedAfterAdmissionDate,
+
+  -- V9 supplementary（损伤、病理、过敏、血型、医生、质控）
+  injuryPoisoningCause, injuryPoisoningCode,
+  pathologicalDiagnosisCode, pathologyNumber,
+  drugAllergy, allergyDrugs, autopsy, bloodType, rhBloodType,
+  departmentDirector, chiefPhysician, attendingPhysician, residentPhysician,
+  responsibleNurse, traineePhysician, internPhysician, coder,
+  recordQuality, qcPhysician, qcNurse, qcDate,
+
+  -- Source / extraction
   sourceHospital, sourcePdfPath, extractionConfidence
 
 If the user references a field outside this list, map to the closest
@@ -133,8 +145,8 @@ AVAILABLE CUSTOM OPERATORS
 
 EXAMPLES
 
-Input:  "主手术编码非空时，手术医生与手术日期不能为空"
-Output: {"name":"主手术信息完整性","description":"主手术编码已填写时，手术医生与手术日期必须同步填写","dimension":"completeness","severity":"deduction","errorMessageTemplate":"主手术编码 {{mainOperationCode}} 已填写，但手术医生或手术日期缺失","expression":{"when":{"op":"notNull","field":"mainOperationCode"},"assert":{"op":"and","args":[{"op":"notNull","field":"operator"},{"op":"notNull","field":"operationDate"}]}}}
+Input:  "病理诊断填写时病理编码与病理号不能为空"
+Output: {"name":"病理信息完整性","description":"病理诊断已填写时，病理编码与病理号必须同步填写","dimension":"completeness","severity":"deduction","errorMessageTemplate":"病理诊断 {{pathologicalDiagnosis}} 已填写，但病理编码或病理号缺失","expression":{"when":{"op":"notNull","field":"pathologicalDiagnosis"},"assert":{"op":"and","args":[{"op":"notNull","field":"pathologicalDiagnosisCode"},{"op":"notNull","field":"pathologyNumber"}]}}}
 
 Input:  "入院日期早于出院日期，且住院天数 = 出院日期 - 入院日期"
 Output: {"name":"住院日期与天数一致性","description":"入院日期必须早于出院日期，且住院天数等于出入院日期之差","dimension":"consistency","severity":"deduction","errorMessageTemplate":"住院天数 {{lengthOfStay}} 与入院/出院日期不一致","expression":{"op":"and","args":[{"op":"dateBefore","field":"admissionDate","rhs":{"field":"dischargeDate"}},{"op":"eq","field":"lengthOfStay","rhs":{"op":"dateDiffDays","from":"admissionDate","to":"dischargeDate"}}]}}
@@ -151,10 +163,10 @@ Output: {"name":"男性年龄上限","description":"性别为男性时年龄不�
 Input:  "出生日期与年龄不一致时报错"
 Output: {"operators":[{"code":"ageConsistentCheck","name":"出生日期年龄一致性","description":"校验填报年龄与出生日期推算的周岁是否一致","parameterNames":["birthDateField","refDateField","ageField"],"bodyDsl":{"op":"eq","field":{"$ref":"ageField"},"rhs":{"op":"ageYears","birthDate":{"$ref":"birthDateField"},"refDate":{"$ref":"refDateField"}}}}],"name":"出生日期与年龄一致性","description":"填报年龄须与出生日期推算的周岁相符","dimension":"consistency","severity":"deduction","errorMessageTemplate":"出生日期 {{birthDate}} 与年龄 {{age}} 不一致，请检查","expression":{"when":{"op":"and","args":[{"op":"notNull","field":"birthDate"},{"op":"notNull","field":"age"},{"op":"notNull","field":"admissionDate"}]},"assert":{"op":"custom","code":"ageConsistentCheck","args":{"birthDateField":"birthDate","refDateField":"admissionDate","ageField":"age"}}}}
 
-Input:  "主手术编码必须在 ICD-9-CM-3 字典中"
-Output: {"name":"主手术编码标准化校验","description":"主手术编码非空时必须在 ICD-9-CM-3 国家临床版字典中","dimension":"standardization","severity":"deduction","errorMessageTemplate":"主手术编码 {{mainOperationCode}} 不在 ICD-9-CM-3 标准字典中","expression":{"when":{"op":"notNull","field":"mainOperationCode"},"assert":{"op":"icdCodeExists","field":"mainOperationCode","category":"icd9cm3"}}}
+Input:  "主诊断编码必须在 ICD-10 字典中"
+Output: {"name":"主诊断编码标准化校验","description":"主诊断编码非空时必须在 ICD-10 国家临床版字典中","dimension":"standardization","severity":"deduction","errorMessageTemplate":"主诊断编码 {{mainDiagnosisCode}} 不在 ICD-10 标准字典中","expression":{"when":{"op":"notNull","field":"mainDiagnosisCode"},"assert":{"op":"icdCodeExists","field":"mainDiagnosisCode","category":"icd10"}}}
 
-Input:  "主手术编码与名称必须对应一致"
-Output: {"name":"主手术编码与名称一致性","description":"主手术编码与名称同时填写时名称必须与字典标准名一致","dimension":"consistency","severity":"deduction","errorMessageTemplate":"主手术编码 {{mainOperationCode}} 对应名称与录入 {{mainOperationName}} 不一致","expression":{"when":{"op":"and","args":[{"op":"notNull","field":"mainOperationCode"},{"op":"notNull","field":"mainOperationName"}]},"assert":{"op":"icdNameMatches","codeField":"mainOperationCode","nameField":"mainOperationName","category":"icd9cm3"}}}
+Input:  "主诊断编码与名称必须对应一致"
+Output: {"name":"主诊断编码与名称一致性","description":"主诊断编码与名称同时填写时名称必须与字典标准名一致","dimension":"consistency","severity":"deduction","errorMessageTemplate":"主诊断编码 {{mainDiagnosisCode}} 对应名称与录入 {{mainDiagnosisName}} 不一致","expression":{"when":{"op":"and","args":[{"op":"notNull","field":"mainDiagnosisCode"},{"op":"notNull","field":"mainDiagnosisName"}]},"assert":{"op":"icdNameMatches","codeField":"mainDiagnosisCode","nameField":"mainDiagnosisName","category":"icd10"}}}
 
 Now translate the user's input. Output JSON only.
