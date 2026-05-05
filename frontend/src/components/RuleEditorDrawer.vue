@@ -253,7 +253,7 @@ async function generateDsl() {
     @update:model-value="emit('update:modelValue', $event)"
     :title="mode === 'create' ? '新建规则' : `编辑规则 ${rule?.code ?? ''}`"
     size="660px"
-    :close-on-click-modal="false"
+    :close-on-click-modal="true"
     destroy-on-close
   >
     <el-form
