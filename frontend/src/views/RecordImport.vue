@@ -1505,12 +1505,18 @@ watch(
 .record-form :deep(.el-form-item__label) {
   font-size: 0.85rem;
   color: #555;
-  padding-right: 10px;         /* label 与输入框固定 10px 间距 */
+  padding-right: 0;            /* gap 由 label-wrap 的 margin-right 控制 */
   line-height: 32px;           /* 与默认 el-input 等高，标签在 32px 高的行盒内垂直居中 */
   white-space: nowrap;         /* 字段名不换行 */
-  width: auto !important;      /* 按自身内容收缩，覆盖 label-width="auto" 的统一宽度 */
+  width: auto !important;      /* 按自身内容收缩 */
   min-width: 0 !important;
   text-align: left;            /* 标签文本左对齐（flex-start） */
+}
+/* label-width="auto" 会在 .el-form-item__label-wrap 上加 inline 样式
+   margin-right: <最长 label 的对齐补偿>（如 68px），把输入框推开。
+   这里强制改为 10px：标签和输入框稳定 10px 间距。 */
+.record-form :deep(.el-form-item__label-wrap) {
+  margin-right: 10px !important;
 }
 
 .actions {
