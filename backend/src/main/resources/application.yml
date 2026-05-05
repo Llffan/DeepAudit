@@ -69,17 +69,14 @@ deepaudit:
   # restarts (DEEPAUDIT_UPLOAD_DIR env var binds here).
   upload-dir: ${DEEPAUDIT_UPLOAD_DIR:./uploads}
   llm:
-    # Gemini 2.5 Flash (T2.4): multimodal-native -- chat, NL->DSL, PDF page
-    # extraction, and violation explanation all share the same model.
-    # Embedding switches to text-embedding-004 (768 dim, see V2 migration).
-    # Beans are conditional on api-key being non-empty; missing key -> rule
-    # engine still runs, only LLM-dependent features (embedding fill, NL
-    # rule generation, error explanation) gracefully degrade.
-    provider: gemini
-    api-key: ${GEMINI_API_KEY:}
-    chat-model: gemini-2.5-flash
-    vision-model: gemini-2.5-flash
-    embedding-model: text-embedding-004
+    # DeepSeek V3 (OpenAI-compatible API). Chat + streaming share deepseek-chat.
+    # DeepSeek has no embedding endpoint; embedding features degrade gracefully.
+    # Set DEEPSEEK_API_KEY env var to enable NL->DSL, violation explanation,
+    # and testing-assistant. Rule engine itself does NOT require LLM.
+    provider: deepseek
+    base-url: https://api.deepseek.com/v1
+    api-key: ${DEEPSEEK_API_KEY:}
+    chat-model: deepseek-chat
     timeout-seconds: 60
     max-retries: 2
 
