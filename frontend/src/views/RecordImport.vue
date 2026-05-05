@@ -751,7 +751,6 @@ watch(
       :model="form"
       :rules="rules"
       label-position="left"
-      label-width="auto"
       class="record-form"
     >
       <!-- 病案号 + 来源医院（必填头，固定在 14 行布局之前） -->
@@ -1503,7 +1502,7 @@ watch(
 .record-form :deep(.el-form-item__label) {
   font-size: 0.85rem;
   color: #555;
-  padding-right: 8px;          /* label 在 input 左侧时，留一点右边距 */
+  padding-right: 10px;         /* label 与输入框固定 10px 间距 */
   line-height: 1.3;
   white-space: nowrap;         /* 字段名不换行：长字段如"工作单位及地址"保持单行显示 */
 }
