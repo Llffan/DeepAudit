@@ -99,10 +99,14 @@ public class LlmAutoConfiguration {
         log.info("Loaded NL->DSL system prompt ({} chars) from {}",
             systemPrompt.length(), RULE_DSL_PROMPT_RESOURCE);
 
-        return naturalLanguage -> chatModel.generate(List.of(
-            SystemMessage.from(systemPrompt),
-            UserMessage.from(naturalLanguage)
-        )).content().text();
+        return (naturalLanguage, customOperatorsCtx) -> {
+            String prompt = systemPrompt.replace(
+                "{{CUSTOM_OPERATORS_PLACEHOLDER}}", customOperatorsCtx);
+            return chatModel.generate(List.of(
+                SystemMessage.from(prompt),
+                UserMessage.from(naturalLanguage)
+            )).content().text();
+        };
     }
 
     private static String loadResourceText(String path) throws IOException {
