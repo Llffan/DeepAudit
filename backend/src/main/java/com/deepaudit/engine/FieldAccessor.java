@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * 60-field whitelist for the rule DSL (V1 §4.4 + V6 HQMS + V7 main-diagnosis attrs).
+ * 62-field whitelist for the rule DSL (V1 + V6 HQMS + V7 main-diag attrs + V8 outpatient extras).
  *
  * <p>Acts as both:
  * <ul>
@@ -112,7 +112,11 @@ public final class FieldAccessor {
         // V7 — Main diagnosis attributes flat-mirrored from subtable (3)
         Map.entry("mainAdmissionCondition",  MedicalRecordMain::getMainAdmissionCondition),
         Map.entry("mainDischargeCondition",  MedicalRecordMain::getMainDischargeCondition),
-        Map.entry("mainNote",                MedicalRecordMain::getMainNote)
+        Map.entry("mainNote",                MedicalRecordMain::getMainNote),
+
+        // V8 — Outpatient diagnosis extras (2)
+        Map.entry("outpatientAdmissionCondition", MedicalRecordMain::getOutpatientAdmissionCondition),
+        Map.entry("confirmedAfterAdmissionDate",  MedicalRecordMain::getConfirmedAfterAdmissionDate)
     );
 
     /**

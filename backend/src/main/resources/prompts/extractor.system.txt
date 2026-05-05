@@ -61,8 +61,10 @@
     "dischargeStatus":        string|null,   // 医嘱离院 / 医嘱转院 / 医嘱转社区/乡镇 / 非医嘱离院 / 死亡 / 其他
 
     // 门(急)诊诊断
-    "outpatientDiagnosis":     string|null,
-    "outpatientDiagnosisCode": string|null,
+    "outpatientDiagnosis":            string|null,
+    "outpatientDiagnosisCode":        string|null,
+    "outpatientAdmissionCondition":   string|null,   // 有 / 临床未确定 / 情况不明 / 无
+    "confirmedAfterAdmissionDate":    string|null,   // yyyy-MM-dd 入院后确诊日期
 
     // 出院主诊（平铺；同步在 diagnoses 数组中也会有一条 type='main' 由后端自动同步）
     "mainDiagnosisCode":         string|null,

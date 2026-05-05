@@ -243,9 +243,11 @@ public class MedicalRecordSaveService {
         m.setDischargeWard(r.dischargeWard());
         m.setSpecialtyDept(r.specialtyDept());
 
-        // V6 outpatient diagnosis
+        // V6 outpatient diagnosis + V8 extras
         m.setOutpatientDiagnosis(r.outpatientDiagnosis());
         m.setOutpatientDiagnosisCode(r.outpatientDiagnosisCode());
+        m.setOutpatientAdmissionCondition(r.outpatientAdmissionCondition());
+        m.setConfirmedAfterAdmissionDate(r.confirmedAfterAdmissionDate());
 
         m.setMainDiagnosisCode(r.mainDiagnosisCode());
         m.setMainDiagnosisName(r.mainDiagnosisName());

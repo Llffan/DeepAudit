@@ -158,6 +158,14 @@ public class MedicalRecordMain {
     @Column(name = "outpatient_diagnosis_code", length = 32)
     private String outpatientDiagnosisCode;
 
+    /** V8: 门急诊诊断的入院情况（HQMS RC014 同字典） */
+    @Column(name = "outpatient_admission_condition", length = 20)
+    private String outpatientAdmissionCondition;
+
+    /** V8: 入院后确诊日期 */
+    @Column(name = "confirmed_after_admission_date")
+    private LocalDate confirmedAfterAdmissionDate;
+
     @Column(name = "main_diagnosis_code", length = 32)
     private String mainDiagnosisCode;
 
@@ -378,4 +386,8 @@ public class MedicalRecordMain {
     public void setMainDischargeCondition(String mainDischargeCondition) { this.mainDischargeCondition = mainDischargeCondition; }
     public String getMainNote() { return mainNote; }
     public void setMainNote(String mainNote) { this.mainNote = mainNote; }
+    public String getOutpatientAdmissionCondition() { return outpatientAdmissionCondition; }
+    public void setOutpatientAdmissionCondition(String outpatientAdmissionCondition) { this.outpatientAdmissionCondition = outpatientAdmissionCondition; }
+    public LocalDate getConfirmedAfterAdmissionDate() { return confirmedAfterAdmissionDate; }
+    public void setConfirmedAfterAdmissionDate(LocalDate confirmedAfterAdmissionDate) { this.confirmedAfterAdmissionDate = confirmedAfterAdmissionDate; }
 }

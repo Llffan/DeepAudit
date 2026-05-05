@@ -245,8 +245,16 @@ async function save(target: 'draft' | 'confirmed') {
   submitting.value = true;
   lastError.value = null;
   try {
+    // 网格里 19 个其他诊断槽位多数为空；提交前过滤掉 diagnosisName 为空的行，
+    // 并按过滤后的位置重排 seqNo 让落库的序号连续。
+    const cleanedDiagnoses = (form.diagnoses ?? [])
+      .filter((d) => d.diagnosisName && d.diagnosisName.trim() !== '')
+      .map((d, i) => ({ ...d, seqNo: i + 1 }));
+
     const payload = {
       ...form,
+      diagnoses: cleanedDiagnoses,
+      otherDiagnosisCount: cleanedDiagnoses.length,
       id: recordId.value ?? undefined,
       status: target,
       sourcePdfPath: sourcePdfPath.value,
@@ -362,6 +370,69 @@ function removeOtherDiagnosis(idx: number) {
   form.otherDiagnosisCount = form.diagnoses.length;
 }
 
+// ─── 诊断网格 helper（10 行 × 2 列固定布局） ──────────────────────────
+//
+// 槽位映射（i 从 0 开始）：
+//   i = 0       → 主诊（绑定 form.mainDiagnosis* 平铺字段）
+//   i = 1..19   → 其他诊断 form.diagnoses[i-1]
+// 视觉布局：
+//   左列 row 1..10 → i = 0..9
+//   右列 row 1..10 → i = 10..19
+// 即"从上到下、从左到右"。
+type DiagField = 'name' | 'code' | 'admission' | 'discharge';
+
+function getSlot(i: number): { name: string | null; code: string | null; admission: string | null; discharge: string | null; isMain: boolean } {
+  if (i === 0) {
+    return {
+      isMain: true,
+      name: form.mainDiagnosisName,
+      code: form.mainDiagnosisCode,
+      admission: form.mainAdmissionCondition,
+      discharge: form.mainDischargeCondition,
+    };
+  }
+  const d = form.diagnoses?.[i - 1];
+  return {
+    isMain: false,
+    name: d?.diagnosisName ?? null,
+    code: d?.diagnosisCode ?? null,
+    admission: d?.admissionCondition ?? null,
+    discharge: d?.dischargeCondition ?? null,
+  };
+}
+
+function setSlot(i: number, field: DiagField, value: string | null) {
+  const v = value === '' ? null : value;
+  if (i === 0) {
+    if (field === 'name') form.mainDiagnosisName = v;
+    else if (field === 'code') form.mainDiagnosisCode = v;
+    else if (field === 'admission') form.mainAdmissionCondition = v;
+    else if (field === 'discharge') form.mainDischargeCondition = v;
+    return;
+  }
+  const idx = i - 1;
+  // 按需扩展 diagnoses 数组到 idx，让中间槽位有空对象占位
+  while ((form.diagnoses?.length ?? 0) <= idx) {
+    if (!form.diagnoses) form.diagnoses = [];
+    form.diagnoses.push({
+      diagType: 'other',
+      seqNo: form.diagnoses.length + 1,
+      diagnosisName: '',
+      diagnosisCode: null,
+      icdVersion: 'ICD-10',
+      admissionCondition: null,
+      dischargeCondition: null,
+      note: null,
+    });
+  }
+  const d = form.diagnoses[idx];
+  if (field === 'name') d.diagnosisName = v ?? '';
+  else if (field === 'code') d.diagnosisCode = v;
+  else if (field === 'admission') d.admissionCondition = v;
+  else if (field === 'discharge') d.dischargeCondition = v;
+  d.seqNo = idx + 1;
+}
+
 // ─── PDF 导出（前端浏览器打印） ────────────────────────────────────────
 //
 // 走浏览器原生 window.print() 路径：开新窗口写入纯 HTML 表格 → 调 print()
@@ -391,81 +462,76 @@ function section(_title: string, body: string): string {
   return `<table>${body}</table>`;
 }
 
+// 用户提供的 14 行布局：每行 1 个独立 <table>，相邻表通过 CSS 负 margin 黏合。
+// 字段数任意（2~5 都支持），cell 数 = pairs.length * 2（每对 [label, value] → th + td）
+function rowTable(...pairs: [string, unknown][]): string {
+  const cells = pairs
+    .map(([l, v]) => `<th>${l}</th><td>${escapeHtml(v)}</td>`)
+    .join('');
+  return `<table><tr>${cells}</tr></table>`;
+}
+
 function buildPrintHtml(r: MedicalRecord): string {
-  const basic = section('基本信息',
-    row2('病案号', r.recordNo, '姓名', r.name) +
-    row2('性别', r.gender, '出生日期', r.birthDate) +
-    row2('年龄', r.age, '证件类型', r.idCardType) +
-    row2('证件号', r.idCardMasked, '国籍', r.nationality) +
-    row2('民族', r.ethnicity, '婚姻', r.maritalStatus) +
-    row2('职业', r.occupation, '出生地', r.birthPlace) +
-    row1('籍贯', r.nativePlace),
-  );
+  // 病案号头（必填主键，单独一行）
+  const head = rowTable(['病案号', r.recordNo], ['来源医院', r.sourceHospital]);
 
-  const newborn = (r.age === 0 || r.ageDays != null || r.newbornBirthWeight != null)
-    ? section('新生儿信息（1年内）',
-        row2('出生体重 (g)', r.newbornBirthWeight, '入院体重 (g)', r.newbornAdmissionWeight) +
-        row1('不足1岁(天)', r.ageDays),
-      )
-    : '';
+  // 严格按用户列出的 14 行布局，行 9/13 跳过；行 1~14 每行一个 rowTable
+  const r1  = rowTable(['姓名', r.name], ['性别', r.gender], ['出生日期', r.birthDate], ['年龄', r.age], ['国籍', r.nationality]);
+  const r2  = rowTable(['(不足1岁的)年龄(天)', r.ageDays], ['新生儿出生体重 (g)', r.newbornBirthWeight], ['新生儿入院体重 (g)', r.newbornAdmissionWeight]);
+  const r3  = rowTable(['出生地', r.birthPlace], ['籍贯', r.nativePlace], ['民族', r.ethnicity]);
+  const r4  = rowTable(['证件类型', r.idCardType], ['证件号', r.idCardMasked], ['职业', r.occupation], ['婚姻', r.maritalStatus]);
+  const r5  = rowTable(['现住址', r.currentAddress], ['电话', r.currentPhone], ['邮编', r.currentZip]);
+  const r6  = rowTable(['户口地址', r.registeredAddress], ['邮编', r.registeredZip]);
+  const r7  = rowTable(['工作单位及地址', r.workplace], ['单位电话', r.workPhone], ['邮编', r.workZip]);
+  const r8  = rowTable(['联系人姓名', r.contactName], ['关系', r.contactRelation], ['地址', r.contactAddress], ['电话', r.contactPhone]);
+  const r10 = rowTable(['入院途径', r.admissionRoute]);
+  const r11 = rowTable(['入院时间', r.admissionDate], ['入院科别', r.admissionDept], ['病房', r.admissionWard], ['转科科别', r.specialtyDept]);
+  const r12 = rowTable(['出院时间', r.dischargeDate], ['出院科别', r.dischargeDept], ['病房', r.dischargeWard], ['实际住院(天)', r.lengthOfStay]);
+  const r14 = rowTable(['门(急)诊诊断', r.outpatientDiagnosis], ['疾病编码', r.outpatientDiagnosisCode], ['入院情况', r.outpatientAdmissionCondition], ['入院后确诊日期', r.confirmedAfterAdmissionDate]);
+  // 离院方式（用户列表中未列但 schema 必有，单独一行）
+  const rExtra = rowTable(['离院方式', r.dischargeStatus]);
 
-  const contact = section('联系信息',
-    row1('现住地址', r.currentAddress) +
-    row2('现住电话', r.currentPhone, '邮编', r.currentZip) +
-    row1('户口住址', r.registeredAddress) +
-    row1('户口邮编', r.registeredZip) +
-    row1('工作单位及地址', r.workplace) +
-    row2('单位电话', r.workPhone, '单位邮编', r.workZip) +
-    row2('联系人姓名', r.contactName, '关系', r.contactRelation) +
-    row1('联系人地址', r.contactAddress) +
-    row1('联系人电话', r.contactPhone),
-  );
+  const upper = head + r1 + r2 + r3 + r4 + r5 + r6 + r7 + r8 + r10 + r11 + r12 + r14 + rExtra;
 
-  const adm = section('入出院信息',
-    row2('入院日期', r.admissionDate, '出院日期', r.dischargeDate) +
-    row2('住院天数', r.lengthOfStay, '入院途径', r.admissionRoute) +
-    row2('入院科室', r.admissionDept, '入院病房', r.admissionWard) +
-    row2('出院科室', r.dischargeDept, '出院病房', r.dischargeWard) +
-    row2('专科科别', r.specialtyDept, '离院方式', r.dischargeStatus),
-  );
+  // ─── 出院诊断网格（10 行 × 2 列，与前端表单同布局）──────────────────────
+  // slot 0 = main, slot 1..19 = diagnoses[0..18]；左列 0..9，右列 10..19
+  const slotName = (i: number) => i === 0 ? r.mainDiagnosisName : (r.diagnoses?.[i - 1]?.diagnosisName ?? null);
+  const slotCode = (i: number) => i === 0 ? r.mainDiagnosisCode : (r.diagnoses?.[i - 1]?.diagnosisCode ?? null);
+  const slotAdm  = (i: number) => i === 0 ? r.mainAdmissionCondition : (r.diagnoses?.[i - 1]?.admissionCondition ?? null);
+  const slotDis  = (i: number) => i === 0 ? r.mainDischargeCondition : (r.diagnoses?.[i - 1]?.dischargeCondition ?? null);
 
-  const outpatient = section('门(急)诊诊断',
-    row2('诊断名称', r.outpatientDiagnosis, '疾病编号', r.outpatientDiagnosisCode),
-  );
+  const diagBody = Array.from({ length: 10 }, (_, k) => {
+    const left = k;          // 0..9
+    const right = k + 10;    // 10..19
+    return `<tr>
+      <td>${escapeHtml(slotName(left))}</td>
+      <td>${escapeHtml(slotCode(left))}</td>
+      <td>${escapeHtml(slotAdm(left))}</td>
+      <td>${escapeHtml(slotDis(left))}</td>
+      <td>${escapeHtml(slotName(right))}</td>
+      <td>${escapeHtml(slotCode(right))}</td>
+      <td>${escapeHtml(slotAdm(right))}</td>
+      <td>${escapeHtml(slotDis(right))}</td>
+    </tr>`;
+  }).join('');
 
-  const mainDiag = section('主要诊断',
-    row2('主诊编码', r.mainDiagnosisCode, 'ICD 版本', r.mainDiagnosisIcdVer) +
-    row1('主诊名称', r.mainDiagnosisName) +
-    row2('入院病况', r.mainAdmissionCondition, '出院情况', r.mainDischargeCondition) +
-    row1('主诊备注', r.mainNote) +
-    row1('病理诊断', r.pathologicalDiagnosis),
-  );
+  const diagGrid = `<table class="diag">
+    <thead>
+      <tr>
+        <th>出院诊断</th><th>疾病编码</th><th>入院病情</th><th>出院情况</th>
+        <th>出院诊断</th><th>疾病编码</th><th>入院病情</th><th>出院情况</th>
+      </tr>
+    </thead>
+    <tbody>${diagBody}</tbody>
+  </table>`;
 
-  const otherRows = (r.diagnoses ?? []).map((d, i) => `
-    <tr>
-      <td style="text-align:center">${i + 1}</td>
-      <td>${escapeHtml(d.diagnosisName)}</td>
-      <td>${escapeHtml(d.diagnosisCode)}</td>
-      <td>${escapeHtml(d.icdVersion)}</td>
-      <td>${escapeHtml(d.admissionCondition)}</td>
-      <td>${escapeHtml(d.dischargeCondition)}</td>
-      <td>${escapeHtml(d.note)}</td>
-    </tr>`).join('');
-  // 其他诊断表（同样不带标题，直接和上下表格拼接）
-  const otherDiag = `<table>
-      <thead>
-        <tr>
-          <th style="width:30px">#</th>
-          <th>诊断名称</th>
-          <th>疾病编码</th>
-          <th>ICD</th>
-          <th>入院病况</th>
-          <th>出院情况</th>
-          <th>备注</th>
-        </tr>
-      </thead>
-      <tbody>${otherRows || '<tr><td colspan="7" style="text-align:center;color:#888">（无其他诊断）</td></tr>'}</tbody>
-    </table>`;
+  const diagLegend = `<table class="legend"><tr>
+    <td><b>入院病情：</b>1.有 &nbsp; 2.临床未确定 &nbsp; 3.情况不明 &nbsp; 4.无</td>
+    <td><b>出院情况：</b>1.治愈 &nbsp; 2.好转 &nbsp; 3.未愈 &nbsp; 4.死亡 &nbsp; 5.其他</td>
+  </tr></table>`;
+
+  const mainDiag = diagGrid + diagLegend;
+  const otherDiag = '';   // 已合并到 diagGrid 中
 
   const operation = section('主要手术',
     row2('主手术编码', r.mainOperationCode, '主手术名称', r.mainOperationName) +
@@ -493,6 +559,13 @@ function buildPrintHtml(r: MedicalRecord): string {
   th { font-weight: 600; width: 14%; background: #fff; text-align: left; }
   td { width: 36%; word-break: break-all; }
   thead th { text-align: center; }
+  /* 诊断网格：8 列等宽，行内字段直接读 / 不再走 14%/36% 字段:值规则 */
+  table.diag { table-layout: fixed; }
+  table.diag th, table.diag td { width: 12.5%; text-align: left; padding: 4px 6px; }
+  table.diag thead th { text-align: center; background: #f5f5f5; font-weight: 600; }
+  /* 字典脚注：紧贴诊断网格下方，无外框、左右两列 */
+  table.legend { border: none; margin-top: 4px; }
+  table.legend td { border: none; padding: 2px 6px; font-size: 11px; color: #333; width: 50%; }
   @media print {
     body { padding: 0; }
     h1 { margin-bottom: 12px; }
@@ -501,11 +574,7 @@ function buildPrintHtml(r: MedicalRecord): string {
 </head>
 <body>
 <h1>住院病案首页</h1>
-${basic}
-${newborn}
-${contact}
-${adm}
-${outpatient}
+${upper}
 ${mainDiag}
 ${otherDiag}
 ${operation}
@@ -698,27 +767,31 @@ watch(
       label-position="top"
       class="record-form"
     >
-      <el-divider content-position="left">基本信息</el-divider>
+      <!-- 病案号 + 来源医院（必填头，固定在 14 行布局之前） -->
       <el-row :gutter="16">
-        <el-col :span="6">
+        <el-col :span="8">
           <el-form-item label="病案号" prop="recordNo" required>
             <el-input v-model="form.recordNo" placeholder="必填" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="6">
+        <el-col :span="16">
+          <el-form-item label="来源医院">
+            <el-input v-model="form.sourceHospital" placeholder="可选" clearable />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <!-- 行 1: 姓名 / 性别 / 出生日期 / 年龄 / 国籍 -->
+      <el-row :gutter="16">
+        <el-col :span="5">
           <el-form-item label="姓名">
             <el-input v-model="form.name" placeholder="患者姓名" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+        <el-col :span="4">
           <el-form-item label="性别">
             <el-select :prefix-icon="SelectIcon" v-model="form.gender" clearable placeholder="">
-              <el-option
-                v-for="o in GENDER_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
-              />
+              <el-option v-for="o in GENDER_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -732,36 +805,9 @@ watch(
             />
           </el-form-item>
         </el-col>
-        <el-col :span="2">
+        <el-col :span="4">
           <el-form-item label="年龄">
-            <el-input-number
-              v-model="form.age"
-              :min="0"
-              :max="150"
-              :controls="false"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="3">
-          <el-form-item label="证件类型">
-            <el-select :prefix-icon="SelectIcon" v-model="form.idCardType" clearable>
-              <el-option
-                v-for="o in ID_CARD_TYPE_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
-              />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="6">
-          <el-form-item label="证件号（脱敏）">
-            <el-input
-              v-model="form.idCardMasked"
-              placeholder="如 110101********0011"
-              clearable
-            />
+            <el-input-number v-model="form.age" :min="0" :max="150" :controls="false" style="width: 100%" />
           </el-form-item>
         </el-col>
         <el-col :span="6">
@@ -769,21 +815,58 @@ watch(
             <el-input v-model="form.nationality" placeholder="如 中国" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="6">
+      </el-row>
+
+      <!-- 行 2: (年龄不足一周岁的)年龄_天 / 新生儿出生体重_g / 新生儿入院体重_g -->
+      <el-row :gutter="16">
+        <el-col :span="8">
+          <el-form-item label="(不足1岁的)年龄(天)">
+            <el-input-number v-model="form.ageDays" :min="0" :max="364" :controls="false" style="width: 100%" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="新生儿出生体重 (g)">
+            <el-input-number v-model="form.newbornBirthWeight" :min="0" :max="10000" :controls="false" style="width: 100%" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="新生儿入院体重 (g)">
+            <el-input-number v-model="form.newbornAdmissionWeight" :min="0" :max="10000" :controls="false" style="width: 100%" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <!-- 行 3: 出生地 / 籍贯 / 民族 -->
+      <el-row :gutter="16">
+        <el-col :span="8">
+          <el-form-item label="出生地">
+            <el-input v-model="form.birthPlace" placeholder="省市县" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="籍贯">
+            <el-input v-model="form.nativePlace" placeholder="省市" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
           <el-form-item label="民族">
             <el-input v-model="form.ethnicity" placeholder="如 汉族" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="6">
-          <el-form-item label="婚姻">
-            <el-select :prefix-icon="SelectIcon" v-model="form.maritalStatus" clearable>
-              <el-option
-                v-for="o in MARITAL_STATUS_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
-              />
+      </el-row>
+
+      <!-- 行 4: 证件类型 / 证件号 / 职业 / 婚姻 -->
+      <el-row :gutter="16">
+        <el-col :span="5">
+          <el-form-item label="证件类型">
+            <el-select :prefix-icon="SelectIcon" v-model="form.idCardType" clearable>
+              <el-option v-for="o in ID_CARD_TYPE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="7">
+          <el-form-item label="证件号">
+            <el-input v-model="form.idCardMasked" placeholder="如 110101********0011" clearable />
           </el-form-item>
         </el-col>
         <el-col :span="6">
@@ -791,375 +874,286 @@ watch(
             <el-input v-model="form.occupation" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="12">
-          <el-form-item label="出生地">
-            <el-input v-model="form.birthPlace" placeholder="省市县" clearable />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="籍贯">
-            <el-input v-model="form.nativePlace" placeholder="省市" clearable />
+        <el-col :span="6">
+          <el-form-item label="婚姻">
+            <el-select :prefix-icon="SelectIcon" v-model="form.maritalStatus" clearable>
+              <el-option v-for="o in MARITAL_STATUS_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
           </el-form-item>
         </el-col>
       </el-row>
 
-      <el-divider content-position="left">新生儿信息（1年内）</el-divider>
-      <el-row :gutter="16">
-        <el-col :span="6">
-          <el-form-item label="出生体重 (g)">
-            <el-input-number
-              v-model="form.newbornBirthWeight"
-              :min="0"
-              :max="10000"
-              :controls="false"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="6">
-          <el-form-item label="入院体重 (g)">
-            <el-input-number
-              v-model="form.newbornAdmissionWeight"
-              :min="0"
-              :max="10000"
-              :controls="false"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="6">
-          <el-form-item label="不足1岁(天)">
-            <el-input-number
-              v-model="form.ageDays"
-              :min="0"
-              :max="364"
-              :controls="false"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
-      </el-row>
-
-      <el-divider content-position="left">联系信息</el-divider>
+      <!-- 行 5: 现住址 / 电话 / 邮编 -->
       <el-row :gutter="16">
         <el-col :span="12">
-          <el-form-item label="现住地址">
+          <el-form-item label="现住址">
             <el-input v-model="form.currentAddress" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="6">
-          <el-form-item label="现住电话">
+        <el-col :span="7">
+          <el-form-item label="电话">
             <el-input v-model="form.currentPhone" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+        <el-col :span="5">
           <el-form-item label="邮编">
             <el-input v-model="form.currentZip" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3" />
+      </el-row>
 
+      <!-- 行 6: 户口地址 / 邮编 -->
+      <el-row :gutter="16">
         <el-col :span="18">
-          <el-form-item label="户口住址">
+          <el-form-item label="户口地址">
             <el-input v-model="form.registeredAddress" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+        <el-col :span="6">
           <el-form-item label="邮编">
             <el-input v-model="form.registeredZip" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3" />
+      </el-row>
 
+      <!-- 行 7: 工作单位及地址 / 单位电话 / 邮编 -->
+      <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="工作单位及地址">
             <el-input v-model="form.workplace" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="6">
+        <el-col :span="7">
           <el-form-item label="单位电话">
             <el-input v-model="form.workPhone" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+        <el-col :span="5">
           <el-form-item label="邮编">
             <el-input v-model="form.workZip" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3" />
+      </el-row>
 
-        <el-col :span="6">
+      <!-- 行 8: 联系人姓名 / 关系 / 地址 / 电话 -->
+      <el-row :gutter="16">
+        <el-col :span="5">
           <el-form-item label="联系人姓名">
             <el-input v-model="form.contactName" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+        <el-col :span="4">
           <el-form-item label="关系">
             <el-select :prefix-icon="SelectIcon" v-model="form.contactRelation" clearable>
-              <el-option
-                v-for="o in CONTACT_RELATION_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
-              />
+              <el-option v-for="o in CONTACT_RELATION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
         </el-col>
-        <el-col :span="9">
-          <el-form-item label="联系人地址">
+        <el-col :span="8">
+          <el-form-item label="地址">
             <el-input v-model="form.contactAddress" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="6">
-          <el-form-item label="联系人电话">
+        <el-col :span="7">
+          <el-form-item label="电话">
             <el-input v-model="form.contactPhone" clearable />
           </el-form-item>
         </el-col>
       </el-row>
 
-      <el-divider content-position="left">入出院信息</el-divider>
+      <!-- 行 10: 入院途径 -->
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="入院途径">
+            <el-select :prefix-icon="SelectIcon" v-model="form.admissionRoute" clearable>
+              <el-option v-for="o in ADMISSION_ROUTE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12" />
+      </el-row>
+
+      <!-- 行 11: 入院时间 / 入院科别 / 病房 / 转科科别 -->
       <el-row :gutter="16">
         <el-col :span="6">
-          <el-form-item label="入院日期">
-            <el-date-picker
-              v-model="form.admissionDate"
-              type="date"
-              value-format="YYYY-MM-DD"
-              style="width: 100%"
-            />
+          <el-form-item label="入院时间">
+            <el-date-picker v-model="form.admissionDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="出院日期">
-            <el-date-picker
-              v-model="form.dischargeDate"
-              type="date"
-              value-format="YYYY-MM-DD"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="3">
-          <el-form-item label="住院天数">
-            <el-input-number
-              v-model="form.lengthOfStay"
-              :min="0"
-              :controls="false"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="9" />
-
-        <el-col :span="6">
-          <el-form-item label="入院科室">
+          <el-form-item label="入院科别">
             <el-input v-model="form.admissionDept" clearable />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="出院科室">
-            <el-input v-model="form.dischargeDept" clearable />
-          </el-form-item>
-        </el-col>
-        <el-col :span="6">
-          <el-form-item label="入院途径">
-            <el-select :prefix-icon="SelectIcon" v-model="form.admissionRoute" clearable>
-              <el-option
-                v-for="o in ADMISSION_ROUTE_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
-              />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="6">
-          <el-form-item label="离院方式">
-            <el-select :prefix-icon="SelectIcon" v-model="form.dischargeStatus" clearable>
-              <el-option
-                v-for="o in DISCHARGE_STATUS_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
-              />
-            </el-select>
-          </el-form-item>
-        </el-col>
-
-        <el-col :span="6">
-          <el-form-item label="入院病房">
+          <el-form-item label="病房">
             <el-input v-model="form.admissionWard" placeholder="如 心内一病区" clearable />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="出院病房">
-            <el-input v-model="form.dischargeWard" clearable />
-          </el-form-item>
-        </el-col>
-        <el-col :span="6">
-          <el-form-item label="专科科别">
+          <el-form-item label="转科科别">
             <el-input v-model="form.specialtyDept" clearable />
           </el-form-item>
         </el-col>
       </el-row>
 
-      <el-divider content-position="left">门(急)诊诊断</el-divider>
+      <!-- 行 12: 出院时间 / 出院科别 / 病房 / 实际住院_天 -->
       <el-row :gutter="16">
-        <el-col :span="14">
-          <el-form-item label="诊断名称">
+        <el-col :span="6">
+          <el-form-item label="出院时间">
+            <el-date-picker v-model="form.dischargeDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="出院科别">
+            <el-input v-model="form.dischargeDept" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="病房">
+            <el-input v-model="form.dischargeWard" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="实际住院(天)">
+            <el-input-number v-model="form.lengthOfStay" :min="0" :controls="false" style="width: 100%" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <!-- 行 14: 门(急)诊诊断 / 疾病编码 / 入院情况 / 入院后确诊日期 -->
+      <el-row :gutter="16">
+        <el-col :span="8">
+          <el-form-item label="门(急)诊诊断">
             <el-input v-model="form.outpatientDiagnosis" clearable />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="疾病编号">
-            <el-input
-              v-model="form.outpatientDiagnosisCode"
-              placeholder="ICD-10"
-              clearable
-            />
+          <el-form-item label="疾病编码">
+            <el-input v-model="form.outpatientDiagnosisCode" placeholder="ICD-10" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="4">
+          <el-form-item label="入院情况">
+            <el-select :prefix-icon="SelectIcon" v-model="form.outpatientAdmissionCondition" clearable>
+              <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="入院后确诊日期">
+            <el-date-picker v-model="form.confirmedAfterAdmissionDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
           </el-form-item>
         </el-col>
       </el-row>
 
-      <el-divider content-position="left">主要诊断</el-divider>
+      <!-- 离院方式（用户列表中未列出但 schema 必有） -->
       <el-row :gutter="16">
         <el-col :span="6">
-          <el-form-item label="主诊编码">
-            <el-input
-              v-model="form.mainDiagnosisCode"
-              placeholder="如 J42.x00"
-              clearable
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="10">
-          <el-form-item label="主诊名称">
-            <el-input
-              v-model="form.mainDiagnosisName"
-              placeholder="如 慢性支气管炎"
-              clearable
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="4">
-          <el-form-item label="ICD 版本">
-            <el-select :prefix-icon="SelectIcon" v-model="form.mainDiagnosisIcdVer" clearable>
-              <el-option
-                v-for="o in ICD_VER_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
-              />
+          <el-form-item label="离院方式">
+            <el-select :prefix-icon="SelectIcon" v-model="form.dischargeStatus" clearable>
+              <el-option v-for="o in DISCHARGE_STATUS_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
         </el-col>
-        <el-col :span="4">
-          <el-form-item label="入院病况">
-            <el-select :prefix-icon="SelectIcon" v-model="form.mainAdmissionCondition" clearable>
-              <el-option
-                v-for="o in ADMISSION_CONDITION_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
-              />
-            </el-select>
-          </el-form-item>
-        </el-col>
-
-        <el-col :span="4">
-          <el-form-item label="出院情况">
-            <el-select :prefix-icon="SelectIcon" v-model="form.mainDischargeCondition" clearable>
-              <el-option
-                v-for="o in DISCHARGE_CONDITION_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
-              />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="10">
-          <el-form-item label="主诊备注">
-            <el-input v-model="form.mainNote" clearable />
-          </el-form-item>
-        </el-col>
-        <el-col :span="10">
-          <el-form-item label="病理诊断">
-            <el-input v-model="form.pathologicalDiagnosis" clearable />
-          </el-form-item>
-        </el-col>
+        <el-col :span="18" />
       </el-row>
 
-      <el-divider content-position="left">
-        其他诊断
-        <span class="diag-count">（{{ form.diagnoses?.length ?? 0 }} 条）</span>
-      </el-divider>
-      <el-table :data="form.diagnoses" size="small" border stripe class="diag-table">
-        <el-table-column label="#" width="50" align="center">
-          <template #default="{ $index }">{{ $index + 1 }}</template>
-        </el-table-column>
-        <el-table-column label="诊断名称" min-width="180">
-          <template #default="{ row }">
-            <el-input v-model="row.diagnosisName" placeholder="如 高血压" />
-          </template>
-        </el-table-column>
-        <el-table-column label="疾病编码" width="140">
-          <template #default="{ row }">
-            <el-input v-model="row.diagnosisCode" placeholder="ICD-10" />
-          </template>
-        </el-table-column>
-        <el-table-column label="ICD" width="120">
-          <template #default="{ row }">
-            <el-select :prefix-icon="SelectIcon" v-model="row.icdVersion" clearable size="small">
-              <el-option
-                v-for="o in ICD_VER_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
+      <!-- 出院诊断网格：10 行 × 2 列；左列 row 1 = 主诊，其余 19 个槽位 = 其他诊断
+           填写顺序：从上到下、从左到右（左列填满后再填右列） -->
+      <table class="diag-grid">
+        <thead>
+          <tr>
+            <th>出院诊断</th><th>疾病编码</th><th>入院病情</th><th>出院情况</th>
+            <th>出院诊断</th><th>疾病编码</th><th>入院病情</th><th>出院情况</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in 10" :key="r">
+            <!-- ───── 左列：i = r - 1（0..9）───── -->
+            <td>
+              <el-input
+                size="small"
+                :model-value="getSlot(r - 1).name"
+                @update:model-value="(v) => setSlot(r - 1, 'name', v)"
+                :placeholder="r === 1 ? '主要诊断' : ''"
               />
-            </el-select>
-          </template>
-        </el-table-column>
-        <el-table-column label="入院病况" width="130">
-          <template #default="{ row }">
-            <el-select :prefix-icon="SelectIcon" v-model="row.admissionCondition" clearable size="small">
-              <el-option
-                v-for="o in ADMISSION_CONDITION_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
+            </td>
+            <td>
+              <el-input
+                size="small"
+                :model-value="getSlot(r - 1).code"
+                @update:model-value="(v) => setSlot(r - 1, 'code', v)"
+                placeholder="ICD-10"
               />
-            </el-select>
-          </template>
-        </el-table-column>
-        <el-table-column label="出院情况" width="120">
-          <template #default="{ row }">
-            <el-select :prefix-icon="SelectIcon" v-model="row.dischargeCondition" clearable size="small">
-              <el-option
-                v-for="o in DISCHARGE_CONDITION_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
+            </td>
+            <td>
+              <el-select
+                size="small"
+                :prefix-icon="SelectIcon"
+                :model-value="getSlot(r - 1).admission"
+                @update:model-value="(v) => setSlot(r - 1, 'admission', v)"
+                clearable
+              >
+                <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+              </el-select>
+            </td>
+            <td>
+              <el-select
+                size="small"
+                :prefix-icon="SelectIcon"
+                :model-value="getSlot(r - 1).discharge"
+                @update:model-value="(v) => setSlot(r - 1, 'discharge', v)"
+                clearable
+              >
+                <el-option v-for="o in DISCHARGE_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+              </el-select>
+            </td>
+
+            <!-- ───── 右列：i = r + 9（10..19）───── -->
+            <td>
+              <el-input
+                size="small"
+                :model-value="getSlot(r + 9).name"
+                @update:model-value="(v) => setSlot(r + 9, 'name', v)"
               />
-            </el-select>
-          </template>
-        </el-table-column>
-        <el-table-column label="备注" min-width="150">
-          <template #default="{ row }">
-            <el-input v-model="row.note" />
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="64" align="center">
-          <template #default="{ $index }">
-            <el-button
-              link type="danger" size="small"
-              @click="removeOtherDiagnosis($index)"
-            >删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div class="diag-actions">
-        <el-button size="small" @click="addOtherDiagnosis">+ 新增其他诊断</el-button>
+            </td>
+            <td>
+              <el-input
+                size="small"
+                :model-value="getSlot(r + 9).code"
+                @update:model-value="(v) => setSlot(r + 9, 'code', v)"
+                placeholder="ICD-10"
+              />
+            </td>
+            <td>
+              <el-select
+                size="small"
+                :prefix-icon="SelectIcon"
+                :model-value="getSlot(r + 9).admission"
+                @update:model-value="(v) => setSlot(r + 9, 'admission', v)"
+                clearable
+              >
+                <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+              </el-select>
+            </td>
+            <td>
+              <el-select
+                size="small"
+                :prefix-icon="SelectIcon"
+                :model-value="getSlot(r + 9).discharge"
+                @update:model-value="(v) => setSlot(r + 9, 'discharge', v)"
+                clearable
+              >
+                <el-option v-for="o in DISCHARGE_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+              </el-select>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="diag-legend">
+        <span><b>入院病情：</b>1.有 &nbsp; 2.临床未确定 &nbsp; 3.情况不明 &nbsp; 4.无</span>
+        <span><b>出院情况：</b>1.治愈 &nbsp; 2.好转 &nbsp; 3.未愈 &nbsp; 4.死亡 &nbsp; 5.其他</span>
       </div>
 
       <el-divider content-position="left">主要手术</el-divider>
@@ -1479,18 +1473,49 @@ watch(
   border-radius: 8px;
   padding: 0.5rem 1.5rem 1.5rem;
 }
-.diag-count {
-  color: #888;
-  font-weight: 400;
+/* 诊断网格：10 行 × 2 列固定布局，左 4 列 + 右 4 列 */
+.diag-grid {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  table-layout: fixed;
+}
+.diag-grid th,
+.diag-grid td {
+  border: 1px solid #d0d7de;
+  padding: 2px;
+  vertical-align: middle;
+}
+.diag-grid thead th {
+  background: #f5f6f8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #444;
+  text-align: center;
+  padding: 6px 2px;
+}
+/* 8 列等宽分布 */
+.diag-grid th, .diag-grid td { width: 12.5%; }
+.diag-grid :deep(.el-input__wrapper),
+.diag-grid :deep(.el-select__wrapper) {
+  box-shadow: none;
+  background: transparent;
+  padding: 2px 6px;
+  min-height: 26px;
+}
+.diag-grid :deep(.el-input__inner),
+.diag-grid :deep(.el-select__placeholder) {
   font-size: 0.82rem;
-  margin-left: 6px;
 }
-.diag-table {
-  margin-bottom: 8px;
+.diag-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 4px 4px 18px;
+  font-size: 0.78rem;
+  color: #555;
 }
-.diag-actions {
-  margin-bottom: 16px;
-}
+.diag-legend b { color: #333; font-weight: 600; }
 .record-form :deep(.el-divider--horizontal) {
   margin: 22px 0 14px;
 }

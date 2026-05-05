@@ -243,9 +243,11 @@ public class MedicalRecordController {
             m.getDischargeWard(),
             m.getSpecialtyDept(),
 
-            // V6 outpatient diagnosis (2)
+            // V6 outpatient diagnosis (2) + V8 extras (2)
             m.getOutpatientDiagnosis(),
             m.getOutpatientDiagnosisCode(),
+            m.getOutpatientAdmissionCondition(),
+            m.getConfirmedAfterAdmissionDate(),
 
             // Diagnoses — main flattened (8)
             m.getMainDiagnosisCode(),

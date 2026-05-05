@@ -65,8 +65,10 @@
     "admissionRoute":         string,        // 门诊 / 急诊 / 其他医疗机构转入 / 其他
     "dischargeStatus":        string,        // 医嘱离院 / 医嘱转院 / 医嘱转社区/乡镇 / 非医嘱离院 / 死亡 / 其他
 
-    "outpatientDiagnosis":     string|null,
-    "outpatientDiagnosisCode": string|null,  // ICD-10
+    "outpatientDiagnosis":            string|null,
+    "outpatientDiagnosisCode":        string|null,   // ICD-10
+    "outpatientAdmissionCondition":   string|null,   // "有" / "临床未确定" / "情况不明" / "无"
+    "confirmedAfterAdmissionDate":    string|null,   // yyyy-MM-dd；不明确诊则 null
 
     "mainDiagnosisCode":         string,     // 真实 ICD-10 编码
     "mainDiagnosisName":         string,
