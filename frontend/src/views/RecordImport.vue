@@ -1437,6 +1437,9 @@ watch(
    字高一截时挤压下一行的视觉错位 */
 .record-form :deep(.el-form-item) {
   margin-bottom: 14px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
 }
 /* 诊断网格：10 行 × 2 列固定布局，左 4 列 + 右 4 列 */
 .diag-grid {
@@ -1503,10 +1506,11 @@ watch(
   font-size: 0.85rem;
   color: #555;
   padding-right: 10px;         /* label 与输入框固定 10px 间距 */
-  line-height: 32px;           /* 与默认 el-input 等高，标签垂直居中 */
+  line-height: 32px;           /* 与默认 el-input 等高，标签在 32px 高的行盒内垂直居中 */
   white-space: nowrap;         /* 字段名不换行 */
   width: auto !important;      /* 按自身内容收缩，覆盖 label-width="auto" 的统一宽度 */
   min-width: 0 !important;
+  text-align: left;            /* 标签文本左对齐（flex-start） */
 }
 
 .actions {
