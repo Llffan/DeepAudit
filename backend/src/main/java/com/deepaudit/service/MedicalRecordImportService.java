@@ -3,6 +3,8 @@ package com.deepaudit.service;
 import com.deepaudit.api.dto.MedicalRecordImportResponse;
 import com.deepaudit.api.exception.ValidationException;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,8 +19,8 @@ import java.util.List;
  * Orchestrates the {@code POST /api/medical-records/import} pipeline (T3.3):
  *
  * <pre>
- *   multipart -> validate -> save PDF to disk -> render to PNG list ->
- *   Gemini multimodal extract -> shape response.
+ *   multipart -> validate -> save PDF to disk -> PDFBox text extract ->
+ *   DeepSeek text-based extract -> shape response.
  * </pre>
  *
  * <p>Per plan §6.7 / §8.7, this stage NEVER persists to the medical-record
@@ -46,14 +48,11 @@ public class MedicalRecordImportService {
     private static final byte[] PDF_MAGIC = {'%', 'P', 'D', 'F', '-'};
 
     private final FileStorageService storage;
-    private final PdfRenderingService renderer;
     private final MedicalRecordExtractor extractor;
 
     public MedicalRecordImportService(FileStorageService storage,
-                                      PdfRenderingService renderer,
                                       MedicalRecordExtractor extractor) {
         this.storage = storage;
-        this.renderer = renderer;
         this.extractor = extractor;
     }
 
@@ -80,15 +79,15 @@ public class MedicalRecordImportService {
 
         // From here on, any failure should NOT be a hard error — the PDF
         // has been persisted and the user can still edit fields manually.
-        List<byte[]> pages;
-        try {
-            pages = renderer.renderPagesAsPng(bytes);
+        String pdfText;
+        try (PDDocument doc = PDDocument.load(bytes)) {
+            pdfText = new PDFTextStripper().getText(doc);
         } catch (IOException e) {
-            log.warn("PDF render failed for {}: {}", stored.relativePath(), e.toString());
-            return degraded(stored.relativePath(), "PDF 渲染失败：" + e.getMessage());
+            log.warn("PDF text extraction failed for {}: {}", stored.relativePath(), e.toString());
+            return degraded(stored.relativePath(), "PDF 文字提取失败：" + e.getMessage());
         }
 
-        ExtractionResult er = extractor.extract(pages);
+        ExtractionResult er = extractor.extractFromText(pdfText);
         if (er.degraded()) {
             log.warn("Extractor degraded for {}: {}", stored.relativePath(), er.degradedReason());
             return new MedicalRecordImportResponse(
