@@ -68,6 +68,14 @@ deepaudit:
   # which is mounted on a named volume so PDFs survive container
   # restarts (DEEPAUDIT_UPLOAD_DIR env var binds here).
   upload-dir: ${DEEPAUDIT_UPLOAD_DIR:./uploads}
+  # ICD-9-CM-3 / ICD-10 dictionary loader.
+  # On startup, IcdDictLoader bulk-imports docs/icd_dict/*.jsonl into the
+  # icd_dict table when (a) auto-load=true AND (b) the table is empty.
+  # Source path is a Spring Resource URL — defaults to classpath since the
+  # Maven build mirrors docs/icd_dict/ into classpath:data/icd_dict/.
+  icd:
+    auto-load: ${DEEPAUDIT_ICD_AUTO_LOAD:true}
+    resource-dir: classpath:data/icd_dict
   llm:
     # DeepSeek V3 (OpenAI-compatible API). Chat + streaming share deepseek-chat.
     # DeepSeek has no embedding endpoint; embedding features degrade gracefully.

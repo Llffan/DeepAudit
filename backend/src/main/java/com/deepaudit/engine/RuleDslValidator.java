@@ -39,8 +39,13 @@ public class RuleDslValidator {
         "notNull", "isNull",
         "eq", "ne", "gt", "gte", "lt", "lte",
         "dateBefore", "dateAfter",
-        "custom"
+        "custom",
+        "icdCodeExists",
+        "icdNameMatches"
     );
+
+    /** Categories accepted by the {@code icdCodeExists} op (matches V1 schema CHECK constraint). */
+    private static final Set<String> ICD_CATEGORIES = Set.of("icd9cm3", "icd10");
 
     /** Operators that yield a value (only valid in rhs / from / to slots). */
     public static final Set<String> VALUE_OPS = Set.of(
@@ -145,6 +150,21 @@ public class RuleDslValidator {
                 JsonNode args = n.get("args");
                 if (args != null && !args.isObject()) {
                     errors.add(path + ".args: must be an object of {paramName: fieldName} bindings");
+                }
+            }
+            case "icdCodeExists" -> {
+                requireWhitelistedField(n, "field", path, errors);
+                JsonNode cat = n.get("category");
+                if (cat == null || !cat.isTextual() || !ICD_CATEGORIES.contains(cat.asText())) {
+                    errors.add(path + ".category: must be one of " + ICD_CATEGORIES);
+                }
+            }
+            case "icdNameMatches" -> {
+                requireWhitelistedField(n, "codeField", path, errors);
+                requireWhitelistedField(n, "nameField", path, errors);
+                JsonNode cat = n.get("category");
+                if (cat == null || !cat.isTextual() || !ICD_CATEGORIES.contains(cat.asText())) {
+                    errors.add(path + ".category: must be one of " + ICD_CATEGORIES);
                 }
             }
             default -> errors.add(path + ": op '" + op + "' is whitelisted but unhandled (validator bug)");

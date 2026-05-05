@@ -38,9 +38,11 @@ import java.util.stream.StreamSupport;
 public class RuleEvaluator {
 
     private final CustomOperatorRegistry customRegistry;
+    private final IcdDictCache icdDictCache;
 
-    public RuleEvaluator(CustomOperatorRegistry customRegistry) {
+    public RuleEvaluator(CustomOperatorRegistry customRegistry, IcdDictCache icdDictCache) {
         this.customRegistry = customRegistry;
+        this.icdDictCache = icdDictCache;
     }
 
     public boolean evaluate(JsonNode dsl, MedicalRecordMain record) {
@@ -95,6 +97,41 @@ public class RuleEvaluator {
                 }
                 JsonNode args = n.has("args") ? n.get("args") : JsonNodeFactory.instance.objectNode();
                 yield evalBool(substituteRefs(bodyDsl, args), rec);
+            }
+
+            // R-Std-001 / R004: dictionary-backed code validity check. The
+            // cache is loaded from icd_dict at startup and refreshed when the
+            // admin reload endpoint runs. A null field value yields false here
+            // (rule fires), but production rules normally guard with
+            // {when: notNull} so completeness is left to dedicated rules.
+            case "icdCodeExists" -> {
+                String fieldName = requireField(n, "icdCodeExists");
+                String category  = requireText(n, "category", "icdCodeExists");
+                Object v = FieldAccessor.get(fieldName, rec);
+                yield v != null && icdDictCache.contains(v.toString(), category);
+            }
+
+            // R-Cons-001 / R005: code-name consistency check.
+            // Compares the record's name field with the dictionary's standard
+            // name for the given code. Whitespace is collapsed on both sides
+            // before comparison so accidental double spaces / leading-trailing
+            // blanks don't cause false negatives.
+            //
+            // When the code is missing from the dictionary, this op yields
+            // true ("not our problem") -- code legality is R004's job, this op
+            // only fires when both sides are present and disagree. Same for
+            // null code or null name: pair with {when: and(notNull, notNull)}
+            // in production to make intent explicit.
+            case "icdNameMatches" -> {
+                String codeField = requireText(n, "codeField", "icdNameMatches");
+                String nameField = requireText(n, "nameField", "icdNameMatches");
+                String category  = requireText(n, "category",  "icdNameMatches");
+                Object codeVal = FieldAccessor.get(codeField, rec);
+                Object nameVal = FieldAccessor.get(nameField, rec);
+                if (codeVal == null || nameVal == null) yield true;
+                String dictName = icdDictCache.getName(codeVal.toString(), category);
+                if (dictName == null) yield true; // delegate to icdCodeExists
+                yield normalizeName(dictName).equals(normalizeName(nameVal.toString()));
             }
 
             default -> throw new IllegalArgumentException("Unknown op: " + op);
@@ -186,6 +223,18 @@ public class RuleEvaluator {
             return expectedSign < 0 ? cmp < 0 : cmp > 0;
         }
         return false;
+    }
+
+    /**
+     * Collapse runs of whitespace to a single space and trim. Used by
+     * {@code icdNameMatches} so trivial formatting differences ("阑尾切除  术 "
+     * vs "阑尾切除 术") don't produce false mismatches. Does NOT touch
+     * full-width vs half-width punctuation, simplified vs traditional, or
+     * synonyms — those are path-B (vector) territory.
+     */
+    private static String normalizeName(String s) {
+        if (s == null) return "";
+        return s.trim().replaceAll("\\s+", " ");
     }
 
     // ----- DSL structure helpers (better errors than raw NPE) --------------

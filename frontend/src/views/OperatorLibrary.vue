@@ -25,9 +25,11 @@ const BUILTIN_OPS = [
   { op: 'dateAfter',    kind: '布尔', params: 'field, rhs',           desc: '日期晚于 rhs' },
   { op: 'and / or',     kind: '布尔', params: 'args[]',               desc: '逻辑与 / 或（数组）' },
   { op: 'not',          kind: '布尔', params: 'arg',                  desc: '逻辑非' },
-  { op: 'custom',       kind: '布尔', params: 'code, args{}',         desc: '调用自定义算子模板' },
-  { op: 'dateDiffDays', kind: '值',   params: 'from, to',             desc: '两日期相差天数（整数）' },
-  { op: 'ageYears',     kind: '值',   params: 'birthDate, refDate',   desc: '按周岁计算年龄（整数）' },
+  { op: 'custom',         kind: '布尔', params: 'code, args{}',         desc: '调用自定义算子模板' },
+  { op: 'icdCodeExists',  kind: '布尔', params: 'field, category',          desc: '字段值是否在 ICD 字典 (icd9cm3/icd10) 中' },
+  { op: 'icdNameMatches', kind: '布尔', params: 'codeField, nameField, category', desc: 'code 对应字典标准名是否与 name 字段一致（空白折叠）' },
+  { op: 'dateDiffDays',   kind: '值',   params: 'from, to',                 desc: '两日期相差天数（整数）' },
+  { op: 'ageYears',       kind: '值',   params: 'birthDate, refDate',   desc: '按周岁计算年龄（整数）' },
 ]
 
 const templates = ref<OperatorTemplate[]>([])
