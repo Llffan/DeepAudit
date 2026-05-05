@@ -751,6 +751,7 @@ watch(
       :model="form"
       :rules="rules"
       label-position="left"
+      label-width="auto"
       class="record-form"
     >
       <!-- 病案号 + 来源医院（必填头，固定在 14 行布局之前） -->
