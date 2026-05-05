@@ -2,7 +2,8 @@
 import { ref, reactive, computed, watch, onBeforeUnmount, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, type FormInstance, type UploadRequestOptions } from 'element-plus';
-import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick, Files } from '@element-plus/icons-vue';
+import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick, Files, ChatRound } from '@element-plus/icons-vue';
+import TestingAssistantDialog from '@/components/TestingAssistantDialog.vue';
 import {
   emptyRecord,
   GENDER_OPTIONS,
@@ -17,6 +18,7 @@ import {
 const router = useRouter();
 const route = useRoute();
 const mode = ref<'pdf' | 'manual'>('pdf');
+const assistantRef = ref<InstanceType<typeof TestingAssistantDialog> | null>(null);
 const form = reactive<MedicalRecord>(emptyRecord());
 const formRef = ref<FormInstance>();
 const submitting = ref(false);
@@ -420,19 +422,31 @@ watch(
           { label: '手动录入', value: 'manual' },
         ]"
       />
-      <el-button
-        :icon="MagicStick"
-        :loading="mockFilling"
-        :disabled="extractingPdf || submitting"
-        plain
-        type="primary"
-        size="default"
-        class="mock-btn"
-        @click="mockFill"
-      >
-        🎲 LLM 生成测试数据
-      </el-button>
+      <div class="mode-actions">
+        <el-button
+          :icon="MagicStick"
+          :loading="mockFilling"
+          :disabled="extractingPdf || submitting"
+          plain
+          type="primary"
+          size="default"
+          class="mock-btn"
+          @click="mockFill"
+        >
+          🎲 LLM 生成测试数据
+        </el-button>
+        <el-button
+          :icon="ChatRound"
+          plain
+          size="default"
+          @click="assistantRef?.open()"
+        >
+          测试助手
+        </el-button>
+      </div>
     </section>
+
+    <TestingAssistantDialog ref="assistantRef" />
 
     <section v-if="mode === 'pdf'" class="upload-zone">
       <el-upload
@@ -877,6 +891,11 @@ watch(
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.25rem;
+}
+.mode-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 .mock-btn {
   flex-shrink: 0;
