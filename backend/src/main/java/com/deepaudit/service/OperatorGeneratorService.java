@@ -70,22 +70,48 @@ public class OperatorGeneratorService {
 
         // Sentinel: model says it cannot process the input
         if (root.isObject() && root.has("_error")) {
-            String code = root.path("_error").asText();
+            String errCode = root.path("_error").asText();
             String hint = root.path("_hint").asText("");
-            String msg = switch (code) {
+            String msg = switch (errCode) {
                 case "description_unclear" ->
                     "AI 觉得说明不够清晰：" + (hint.isBlank() ? "请补充更多细节" : hint);
                 case "empty_parameters" -> "AI 拒绝生成：参数列表为空";
-                default -> "AI 返回错误：" + code + (hint.isBlank() ? "" : "（" + hint + "）");
+                default -> "AI 返回错误：" + errCode + (hint.isBlank() ? "" : "（" + hint + "）");
             };
             return error(msg, clean);
         }
 
+        // 兼容老 prompt：如果 LLM 直接吐 bodyDsl 根节点（没有 code/name/description 包装），
+        // 也接受 —— 把整棵树当 bodyDsl，code/name/description 留 null 让前端原样保留用户输入
+        JsonNode bodyDsl;
+        String suggestedCode = null;
+        String suggestedName = null;
+        String suggestedDesc = null;
+        if (root.isObject() && root.has("bodyDsl")) {
+            bodyDsl = root.get("bodyDsl");
+            suggestedCode = textOrNull(root, "code");
+            suggestedName = textOrNull(root, "name");
+            suggestedDesc = textOrNull(root, "description");
+        } else {
+            bodyDsl = root;
+        }
+
+        if (bodyDsl == null || bodyDsl.isNull()) {
+            return error("AI 返回的 bodyDsl 为空", clean);
+        }
+
         // 校验 $ref 用的参数名是否都在传入列表里 —— 防止 LLM 引入"幽灵"参数
         List<String> errors = new ArrayList<>();
-        validateRefsAgainstParams(root, parameterNames, errors);
+        validateRefsAgainstParams(bodyDsl, parameterNames, errors);
 
-        return new Response(root, errors, raw, true);
+        return new Response(suggestedCode, suggestedName, suggestedDesc, bodyDsl, errors, raw, true);
+    }
+
+    private static String textOrNull(JsonNode node, String field) {
+        JsonNode v = node.get(field);
+        if (v == null || v.isNull() || !v.isTextual()) return null;
+        String s = v.asText().trim();
+        return s.isEmpty() ? null : s;
     }
 
     /** 递归走 DSL 树，凡是 {"$ref": "X"} 就检查 X 是否在 paramNames 里 */
@@ -108,15 +134,20 @@ public class OperatorGeneratorService {
     }
 
     private static Response error(String message, String rawOutput) {
-        return new Response(null, List.of(message), rawOutput, false);
+        return new Response(null, null, null, null, List.of(message), rawOutput, false);
     }
 
     /**
-     * Service-layer response. {@code bodyDsl} 在错误情况下为 null。
+     * Service-layer response. 错误情况下 bodyDsl 为 null。
+     * {@code suggestedCode / suggestedName / suggestedDescription} 来源于
+     * LLM 的输出包装（如果有），前端可在用户字段为空时填入。
      * {@code errors} 即使在 ok=true 时也可能有内容（比如非致命的 $ref 警告），
      * 前端可以选择是否显示提示再让用户落库。
      */
     public record Response(
+        String suggestedCode,
+        String suggestedName,
+        String suggestedDescription,
         JsonNode bodyDsl,
         List<String> errors,
         String rawOutput,

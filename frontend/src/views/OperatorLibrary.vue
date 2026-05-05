@@ -231,6 +231,9 @@ async function generateBodyDsl() {
       return
     }
     const data = (await res.json()) as {
+      suggestedCode: string | null
+      suggestedName: string | null
+      suggestedDescription: string | null
       bodyDsl: unknown
       errors: string[]
       rawOutput: string | null
@@ -240,12 +243,22 @@ async function generateBodyDsl() {
       ElMessage.error(data.errors?.[0] ?? 'AI 生成失败')
       return
     }
+    // bodyDsl 总是用 AI 输出覆盖；code / name / description 仅在用户字段为空时填入，
+    // 防止覆盖用户已经手填的内容。
     form.value.bodyDslText = JSON.stringify(data.bodyDsl, null, 2)
+    if (!form.value.code.trim() && data.suggestedCode) {
+      form.value.code = data.suggestedCode
+    }
+    if (!form.value.name.trim() && data.suggestedName) {
+      form.value.name = data.suggestedName
+    }
+    if (!form.value.description.trim() && data.suggestedDescription) {
+      form.value.description = data.suggestedDescription
+    }
     if (data.errors && data.errors.length > 0) {
-      // 非致命警告（比如 $ref 引用了列表外的参数）—— 已经填进编辑器，提示用户复核
       ElMessage.warning(`AI 已生成，但有 ${data.errors.length} 条提示，请复核`)
     } else {
-      ElMessage.success('AI 已生成 bodyDsl，请复核后保存')
+      ElMessage.success('AI 已生成 code / name / 说明 / bodyDsl，请复核后保存')
     }
   } finally {
     generating.value = false
