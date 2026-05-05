@@ -2,7 +2,7 @@
 import { ref, reactive, computed, watch, onBeforeUnmount, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, type FormInstance, type UploadRequestOptions } from 'element-plus';
-import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick, Files, ChatRound, Select as SelectIcon } from '@element-plus/icons-vue';
+import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick, Files, ChatRound, Printer, Select as SelectIcon } from '@element-plus/icons-vue';
 import TestingAssistantDialog from '@/components/TestingAssistantDialog.vue';
 import {
   emptyRecord,
@@ -360,6 +360,184 @@ function removeOtherDiagnosis(idx: number) {
   form.diagnoses.splice(idx, 1);
   form.diagnoses.forEach((d, i) => (d.seqNo = i + 1));
   form.otherDiagnosisCount = form.diagnoses.length;
+}
+
+// ─── PDF 导出（前端浏览器打印） ────────────────────────────────────────
+//
+// 走浏览器原生 window.print() 路径：开新窗口写入纯 HTML 表格 → 调 print()
+// → 用户在打印对话框选"另存为 PDF"。
+//
+// 选这个路径而非 jsPDF/pdfmake：
+//  - 中文字体直接用系统宋体，不需要嵌入字体文件（~5MB）
+//  - 零新依赖
+//  - 黑色细线框 + 字段:值 是简单 HTML <table border> 就能表达的样式
+function escapeHtml(s: unknown): string {
+  if (s === null || s === undefined || s === '') return '&nbsp;';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function row2(l1: string, v1: unknown, l2: string, v2: unknown): string {
+  return `<tr><th>${l1}</th><td>${escapeHtml(v1)}</td><th>${l2}</th><td>${escapeHtml(v2)}</td></tr>`;
+}
+function row1(label: string, value: unknown, span = 3): string {
+  return `<tr><th>${label}</th><td colspan="${span}">${escapeHtml(value)}</td></tr>`;
+}
+// 小标题已按需求移除，section 仅作为内容分组工具，输出纯表格
+function section(_title: string, body: string): string {
+  return `<table>${body}</table>`;
+}
+
+function buildPrintHtml(r: MedicalRecord): string {
+  const basic = section('基本信息',
+    row2('病案号', r.recordNo, '姓名', r.name) +
+    row2('性别', r.gender, '出生日期', r.birthDate) +
+    row2('年龄', r.age, '证件类型', r.idCardType) +
+    row2('证件号', r.idCardMasked, '国籍', r.nationality) +
+    row2('民族', r.ethnicity, '婚姻', r.maritalStatus) +
+    row2('职业', r.occupation, '出生地', r.birthPlace) +
+    row1('籍贯', r.nativePlace),
+  );
+
+  const newborn = (r.age === 0 || r.ageDays != null || r.newbornBirthWeight != null)
+    ? section('新生儿信息（1年内）',
+        row2('出生体重 (g)', r.newbornBirthWeight, '入院体重 (g)', r.newbornAdmissionWeight) +
+        row1('不足1岁(天)', r.ageDays),
+      )
+    : '';
+
+  const contact = section('联系信息',
+    row1('现住地址', r.currentAddress) +
+    row2('现住电话', r.currentPhone, '邮编', r.currentZip) +
+    row1('户口住址', r.registeredAddress) +
+    row1('户口邮编', r.registeredZip) +
+    row1('工作单位及地址', r.workplace) +
+    row2('单位电话', r.workPhone, '单位邮编', r.workZip) +
+    row2('联系人姓名', r.contactName, '关系', r.contactRelation) +
+    row1('联系人地址', r.contactAddress) +
+    row1('联系人电话', r.contactPhone),
+  );
+
+  const adm = section('入出院信息',
+    row2('入院日期', r.admissionDate, '出院日期', r.dischargeDate) +
+    row2('住院天数', r.lengthOfStay, '入院途径', r.admissionRoute) +
+    row2('入院科室', r.admissionDept, '入院病房', r.admissionWard) +
+    row2('出院科室', r.dischargeDept, '出院病房', r.dischargeWard) +
+    row2('专科科别', r.specialtyDept, '离院方式', r.dischargeStatus),
+  );
+
+  const outpatient = section('门(急)诊诊断',
+    row2('诊断名称', r.outpatientDiagnosis, '疾病编号', r.outpatientDiagnosisCode),
+  );
+
+  const mainDiag = section('主要诊断',
+    row2('主诊编码', r.mainDiagnosisCode, 'ICD 版本', r.mainDiagnosisIcdVer) +
+    row1('主诊名称', r.mainDiagnosisName) +
+    row2('入院病况', r.mainAdmissionCondition, '出院情况', r.mainDischargeCondition) +
+    row1('主诊备注', r.mainNote) +
+    row1('病理诊断', r.pathologicalDiagnosis),
+  );
+
+  const otherRows = (r.diagnoses ?? []).map((d, i) => `
+    <tr>
+      <td style="text-align:center">${i + 1}</td>
+      <td>${escapeHtml(d.diagnosisName)}</td>
+      <td>${escapeHtml(d.diagnosisCode)}</td>
+      <td>${escapeHtml(d.icdVersion)}</td>
+      <td>${escapeHtml(d.admissionCondition)}</td>
+      <td>${escapeHtml(d.dischargeCondition)}</td>
+      <td>${escapeHtml(d.note)}</td>
+    </tr>`).join('');
+  // 其他诊断表（同样不带标题，直接和上下表格拼接）
+  const otherDiag = `<table>
+      <thead>
+        <tr>
+          <th style="width:30px">#</th>
+          <th>诊断名称</th>
+          <th>疾病编码</th>
+          <th>ICD</th>
+          <th>入院病况</th>
+          <th>出院情况</th>
+          <th>备注</th>
+        </tr>
+      </thead>
+      <tbody>${otherRows || '<tr><td colspan="7" style="text-align:center;color:#888">（无其他诊断）</td></tr>'}</tbody>
+    </table>`;
+
+  const operation = section('主要手术',
+    row2('主手术编码', r.mainOperationCode, '主手术名称', r.mainOperationName) +
+    row2('手术日期', r.operationDate, '麻醉方式', r.anesthesiaMethod) +
+    row1('手术医生', r.operator),
+  );
+
+  const cost = section('费用',
+    row2('总费用 (¥)', r.totalCost, '药品费 (¥)', r.drugCost) +
+    row2('手术费 (¥)', r.operationCost, '医疗服务费 (¥)', r.medicalServiceCost),
+  );
+
+  return `<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>住院病案首页 ${escapeHtml(r.recordNo)}</title>
+<style>
+  body { font-family: 'SimSun', '宋体', serif; color: #000; padding: 20px; font-size: 12px; }
+  h1 { font-size: 18px; text-align: center; margin: 0 0 16px; letter-spacing: 4px; }
+  /* 区块标题已按需求移除，所有 <table> 上下直接拼接，靠 1px 黑线区分 */
+  table { width: 100%; border-collapse: collapse; margin-bottom: 0; border-top: none; }
+  table + table { margin-top: -1px; }      /* 相邻 table 共享一条黑线，视觉上形成连续表格 */
+  th, td { border: 1px solid #000; padding: 5px 8px; vertical-align: top; line-height: 1.5; }
+  th { font-weight: 600; width: 14%; background: #fff; text-align: left; }
+  td { width: 36%; word-break: break-all; }
+  thead th { text-align: center; }
+  @media print {
+    body { padding: 0; }
+    h1 { margin-bottom: 12px; }
+  }
+</style>
+</head>
+<body>
+<h1>住院病案首页</h1>
+${basic}
+${newborn}
+${contact}
+${adm}
+${outpatient}
+${mainDiag}
+${otherDiag}
+${operation}
+${cost}
+</body>
+</html>`;
+}
+
+function exportPdf() {
+  const html = buildPrintHtml(form);
+  const w = window.open('', '_blank', 'width=900,height=1000');
+  if (!w) {
+    ElMessage.warning('浏览器拦截了新窗口，请允许弹窗后重试');
+    return;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  // 等 DOM 加载完毕再触发打印；某些浏览器立即调用会拿不到字体度量
+  const triggerPrint = () => {
+    try {
+      w.focus();
+      w.print();
+    } catch {
+      // ignore
+    }
+  };
+  if (w.document.readyState === 'complete') {
+    setTimeout(triggerPrint, 100);
+  } else {
+    w.addEventListener('load', () => setTimeout(triggerPrint, 100));
+  }
 }
 
 function reset() {
@@ -1086,6 +1264,7 @@ watch(
       </span>
       <span v-else class="actions-spacer" />
       <el-button :icon="Refresh" @click="reset" :disabled="submitting">清空</el-button>
+      <el-button :icon="Printer" @click="exportPdf" :disabled="submitting">导出 PDF</el-button>
       <el-button @click="save('draft')" :loading="submitting">保存草稿</el-button>
       <el-button :icon="Check" type="primary" @click="save('confirmed')" :loading="submitting">
         确认提交
