@@ -55,9 +55,14 @@ public class MedicalRecordExtractor {
         "admissionDept", "dischargeDept", "admissionRoute", "dischargeStatus",
         "mainDiagnosisCode", "mainDiagnosisName", "mainDiagnosisIcdVer",
         "otherDiagnosisCount", "pathologicalDiagnosis",
-        "mainOperationCode", "mainOperationName", "operationDate", "operator",
-        "anesthesiaMethod",
-        "totalCost", "drugCost", "operationCost", "medicalServiceCost"
+        // V9 supplementary
+        "injuryPoisoningCause", "injuryPoisoningCode",
+        "pathologicalDiagnosisCode", "pathologyNumber",
+        "drugAllergy", "allergyDrugs", "autopsy", "bloodType", "rhBloodType",
+        "departmentDirector", "chiefPhysician", "attendingPhysician",
+        "residentPhysician", "responsibleNurse", "traineePhysician",
+        "internPhysician", "coder",
+        "recordQuality", "qcPhysician", "qcNurse", "qcDate"
     );
 
     private final ObjectProvider<ChatLanguageModel> chatModelProvider;

@@ -259,18 +259,36 @@ public class MedicalRecordController {
             m.getOtherDiagnosisCount(),
             m.getPathologicalDiagnosis(),
 
-            // Operations (5)
-            m.getMainOperationCode(),
-            m.getMainOperationName(),
-            m.getOperationDate(),
-            m.getOperator(),
-            m.getAnesthesiaMethod(),
+            // V9 supplementary — 损伤、中毒
+            m.getInjuryPoisoningCause(),
+            m.getInjuryPoisoningCode(),
 
-            // Cost (4)
-            m.getTotalCost(),
-            m.getDrugCost(),
-            m.getOperationCost(),
-            m.getMedicalServiceCost(),
+            // V9 supplementary — 病理扩展
+            m.getPathologicalDiagnosisCode(),
+            m.getPathologyNumber(),
+
+            // V9 supplementary — 过敏 / 尸检 / 血型
+            m.getDrugAllergy(),
+            m.getAllergyDrugs(),
+            m.getAutopsy(),
+            m.getBloodType(),
+            m.getRhBloodType(),
+
+            // V9 supplementary — 医生
+            m.getDepartmentDirector(),
+            m.getChiefPhysician(),
+            m.getAttendingPhysician(),
+            m.getResidentPhysician(),
+            m.getResponsibleNurse(),
+            m.getTraineePhysician(),
+            m.getInternPhysician(),
+            m.getCoder(),
+
+            // V9 supplementary — 质控
+            m.getRecordQuality(),
+            m.getQcPhysician(),
+            m.getQcNurse(),
+            m.getQcDate(),
 
             // Source / extraction (3)
             m.getSourceHospital(),

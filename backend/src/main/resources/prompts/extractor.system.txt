@@ -76,18 +76,36 @@
     "otherDiagnosisCount":       integer|null,
     "pathologicalDiagnosis":     string|null,
 
-    // 主手术
-    "mainOperationCode":      string|null,
-    "mainOperationName":      string|null,
-    "operationDate":          string|null,
-    "operator":               string|null,
-    "anesthesiaMethod":       string|null,   // 全身麻醉 / 椎管内麻醉 / 局部麻醉 / 神经阻滞 / 其他 / 无
+    // 损伤、中毒
+    "injuryPoisoningCause":       string|null,    // 损伤、中毒的外部因素
+    "injuryPoisoningCode":        string|null,    // 对应 ICD-10 编码
 
-    // 费用
-    "totalCost":              number|null,
-    "drugCost":               number|null,
-    "operationCost":          number|null,
-    "medicalServiceCost":     number|null
+    // 病理（诊断名沿用 pathologicalDiagnosis）
+    "pathologicalDiagnosisCode":  string|null,
+    "pathologyNumber":            string|null,    // 病理号
+
+    // 过敏 / 尸检 / 血型
+    "drugAllergy":                string|null,    // 无 / 有
+    "allergyDrugs":               string|null,    // 过敏药物
+    "autopsy":                    string|null,    // 是 / 否（仅死亡患者）
+    "bloodType":                  string|null,    // A / B / O / AB / 不详 / 未查
+    "rhBloodType":                string|null,    // 阴 / 阳 / 不详 / 未查
+
+    // 医生
+    "departmentDirector":         string|null,    // 科主任
+    "chiefPhysician":             string|null,    // 主(副主)任医生
+    "attendingPhysician":         string|null,    // 主治医生
+    "residentPhysician":          string|null,    // 住院医生
+    "responsibleNurse":           string|null,    // 责任护士
+    "traineePhysician":           string|null,    // 进修医生
+    "internPhysician":            string|null,    // 实习医生
+    "coder":                      string|null,    // 编码员
+
+    // 质控
+    "recordQuality":              string|null,    // 甲 / 乙 / 丙
+    "qcPhysician":                string|null,
+    "qcNurse":                    string|null,
+    "qcDate":                     string|null     // YYYY-MM-DD
   },
 
   // 其他诊断列表（不含主诊；主诊已在 main.mainDiagnosis*）；无其他诊断时为 []。

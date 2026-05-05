@@ -196,18 +196,36 @@ public class SamplePdfTool {
         put(fields, "XY_RYBQ",      r.getMainAdmissionCondition()); // V7 — 主诊入院病况
         put(fields, "BLZD",         r.getPathologicalDiagnosis());
 
-        // 主手术
-        put(fields, "SSJCZBM1",     r.getMainOperationCode());
-        put(fields, "SSJCZMC1",     r.getMainOperationName());
-        put(fields, "SSJCZRQ1",     r.getOperationDate());
-        put(fields, "SZ1",          r.getOperator());
-        put(fields, "MZFS1",        r.getAnesthesiaMethod());
+        // V9 supplementary — 损伤、中毒
+        put(fields, "SSZDWBYS",     r.getInjuryPoisoningCause());
+        put(fields, "SSZDWBYS_BM",  r.getInjuryPoisoningCode());
 
-        // 费用
-        put(fields, "ZFY",          r.getTotalCost());
-        put(fields, "XYF",          r.getDrugCost());
-        put(fields, "SSF",          r.getOperationCost());
-        put(fields, "YLFWF",        r.getMedicalServiceCost());
+        // V9 supplementary — 病理（诊断名沿用 BLZD 上方已写）
+        put(fields, "BLZD_BM",      r.getPathologicalDiagnosisCode());
+        put(fields, "BLH",          r.getPathologyNumber());
+
+        // V9 supplementary — 过敏 / 尸检 / 血型
+        put(fields, "YWGM",         r.getDrugAllergy());
+        put(fields, "GMYW",         r.getAllergyDrugs());
+        put(fields, "SJ",           r.getAutopsy());
+        put(fields, "XX",           r.getBloodType());
+        put(fields, "RH",           r.getRhBloodType());
+
+        // V9 supplementary — 医生
+        put(fields, "KZR",          r.getDepartmentDirector());
+        put(fields, "ZRYS",         r.getChiefPhysician());
+        put(fields, "ZZYS",         r.getAttendingPhysician());
+        put(fields, "ZYYS",         r.getResidentPhysician());
+        put(fields, "ZRHS",         r.getResponsibleNurse());
+        put(fields, "JXYS",         r.getTraineePhysician());
+        put(fields, "SXYS",         r.getInternPhysician());
+        put(fields, "BMY",          r.getCoder());
+
+        // V9 supplementary — 质控
+        put(fields, "BAZL",         r.getRecordQuality());
+        put(fields, "ZKYS",         r.getQcPhysician());
+        put(fields, "ZKHS",         r.getQcNurse());
+        put(fields, "ZKRQ",         r.getQcDate());
 
         // 机构
         put(fields, "JGMC",         r.getSourceHospital());

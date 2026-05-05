@@ -17,8 +17,9 @@ import java.time.OffsetDateTime;
 
 /**
  * Curated medical record. Originally 30 fields (V1 §4.4); V6 expanded to 57
- * fields to cover the full HQMS-mandated front-page identity / contact /
- * outpatient-diagnosis blocks. PHI — soft-delete only.
+ * fields for HQMS front-page; V9 (2026-05-05) dropped the operation + cost
+ * blocks (9 fields) and added supplementary 损伤/病理/过敏/血型/医生/质控
+ * (21 fields). PHI — soft-delete only.
  */
 @Entity
 @Table(
@@ -193,32 +194,78 @@ public class MedicalRecordMain {
     @Column(name = "pathological_diagnosis", length = 200)
     private String pathologicalDiagnosis;
 
-    @Column(name = "main_operation_code", length = 32)
-    private String mainOperationCode;
+    // ---- V9 supplementary: 损伤、中毒（2） --------------------------------
+    @Column(name = "injury_poisoning_cause", length = 300)
+    private String injuryPoisoningCause;
 
-    @Column(name = "main_operation_name", length = 200)
-    private String mainOperationName;
+    @Column(name = "injury_poisoning_code", length = 32)
+    private String injuryPoisoningCode;
 
-    @Column(name = "operation_date")
-    private LocalDate operationDate;
+    // ---- V9 supplementary: 病理扩展（2；诊断名沿用旧列）---------------------
+    @Column(name = "pathological_diagnosis_code", length = 32)
+    private String pathologicalDiagnosisCode;
+
+    @Column(name = "pathology_number", length = 64)
+    private String pathologyNumber;
+
+    // ---- V9 supplementary: 过敏 / 尸检 / 血型（5）-------------------------
+    /** 1=无 / 2=有 */
+    @Column(name = "drug_allergy", length = 20)
+    private String drugAllergy;
+
+    @Column(name = "allergy_drugs", length = 300)
+    private String allergyDrugs;
+
+    /** 1=是 / 2=否（仅死亡患者填写） */
+    @Column(length = 20)
+    private String autopsy;
+
+    /** A / B / O / AB / 不详 / 未查 */
+    @Column(name = "blood_type", length = 20)
+    private String bloodType;
+
+    /** 阴 / 阳 / 不详 / 未查 */
+    @Column(name = "rh_blood_type", length = 20)
+    private String rhBloodType;
+
+    // ---- V9 supplementary: 医生（8） --------------------------------------
+    @Column(name = "department_director", length = 100)
+    private String departmentDirector;
+
+    @Column(name = "chief_physician", length = 100)
+    private String chiefPhysician;
+
+    @Column(name = "attending_physician", length = 100)
+    private String attendingPhysician;
+
+    @Column(name = "resident_physician", length = 100)
+    private String residentPhysician;
+
+    @Column(name = "responsible_nurse", length = 100)
+    private String responsibleNurse;
+
+    @Column(name = "trainee_physician", length = 100)
+    private String traineePhysician;
+
+    @Column(name = "intern_physician", length = 100)
+    private String internPhysician;
 
     @Column(length = 100)
-    private String operator;
+    private String coder;
 
-    @Column(name = "anesthesia_method", length = 50)
-    private String anesthesiaMethod;
+    // ---- V9 supplementary: 质控（4） --------------------------------------
+    /** 甲 / 乙 / 丙 */
+    @Column(name = "record_quality", length = 20)
+    private String recordQuality;
 
-    @Column(name = "total_cost", precision = 12, scale = 2)
-    private BigDecimal totalCost;
+    @Column(name = "qc_physician", length = 100)
+    private String qcPhysician;
 
-    @Column(name = "drug_cost", precision = 12, scale = 2)
-    private BigDecimal drugCost;
+    @Column(name = "qc_nurse", length = 100)
+    private String qcNurse;
 
-    @Column(name = "operation_cost", precision = 12, scale = 2)
-    private BigDecimal operationCost;
-
-    @Column(name = "medical_service_cost", precision = 12, scale = 2)
-    private BigDecimal medicalServiceCost;
+    @Column(name = "qc_date")
+    private LocalDate qcDate;
 
     @Column(name = "source_hospital", length = 200)
     private String sourceHospital;
@@ -292,24 +339,49 @@ public class MedicalRecordMain {
     public void setOtherDiagnosisCount(Integer otherDiagnosisCount) { this.otherDiagnosisCount = otherDiagnosisCount; }
     public String getPathologicalDiagnosis() { return pathologicalDiagnosis; }
     public void setPathologicalDiagnosis(String pathologicalDiagnosis) { this.pathologicalDiagnosis = pathologicalDiagnosis; }
-    public String getMainOperationCode() { return mainOperationCode; }
-    public void setMainOperationCode(String mainOperationCode) { this.mainOperationCode = mainOperationCode; }
-    public String getMainOperationName() { return mainOperationName; }
-    public void setMainOperationName(String mainOperationName) { this.mainOperationName = mainOperationName; }
-    public LocalDate getOperationDate() { return operationDate; }
-    public void setOperationDate(LocalDate operationDate) { this.operationDate = operationDate; }
-    public String getOperator() { return operator; }
-    public void setOperator(String operator) { this.operator = operator; }
-    public String getAnesthesiaMethod() { return anesthesiaMethod; }
-    public void setAnesthesiaMethod(String anesthesiaMethod) { this.anesthesiaMethod = anesthesiaMethod; }
-    public BigDecimal getTotalCost() { return totalCost; }
-    public void setTotalCost(BigDecimal totalCost) { this.totalCost = totalCost; }
-    public BigDecimal getDrugCost() { return drugCost; }
-    public void setDrugCost(BigDecimal drugCost) { this.drugCost = drugCost; }
-    public BigDecimal getOperationCost() { return operationCost; }
-    public void setOperationCost(BigDecimal operationCost) { this.operationCost = operationCost; }
-    public BigDecimal getMedicalServiceCost() { return medicalServiceCost; }
-    public void setMedicalServiceCost(BigDecimal medicalServiceCost) { this.medicalServiceCost = medicalServiceCost; }
+    // ---- V9 supplementary accessors ---------------------------------------
+    public String getInjuryPoisoningCause() { return injuryPoisoningCause; }
+    public void setInjuryPoisoningCause(String injuryPoisoningCause) { this.injuryPoisoningCause = injuryPoisoningCause; }
+    public String getInjuryPoisoningCode() { return injuryPoisoningCode; }
+    public void setInjuryPoisoningCode(String injuryPoisoningCode) { this.injuryPoisoningCode = injuryPoisoningCode; }
+    public String getPathologicalDiagnosisCode() { return pathologicalDiagnosisCode; }
+    public void setPathologicalDiagnosisCode(String pathologicalDiagnosisCode) { this.pathologicalDiagnosisCode = pathologicalDiagnosisCode; }
+    public String getPathologyNumber() { return pathologyNumber; }
+    public void setPathologyNumber(String pathologyNumber) { this.pathologyNumber = pathologyNumber; }
+    public String getDrugAllergy() { return drugAllergy; }
+    public void setDrugAllergy(String drugAllergy) { this.drugAllergy = drugAllergy; }
+    public String getAllergyDrugs() { return allergyDrugs; }
+    public void setAllergyDrugs(String allergyDrugs) { this.allergyDrugs = allergyDrugs; }
+    public String getAutopsy() { return autopsy; }
+    public void setAutopsy(String autopsy) { this.autopsy = autopsy; }
+    public String getBloodType() { return bloodType; }
+    public void setBloodType(String bloodType) { this.bloodType = bloodType; }
+    public String getRhBloodType() { return rhBloodType; }
+    public void setRhBloodType(String rhBloodType) { this.rhBloodType = rhBloodType; }
+    public String getDepartmentDirector() { return departmentDirector; }
+    public void setDepartmentDirector(String departmentDirector) { this.departmentDirector = departmentDirector; }
+    public String getChiefPhysician() { return chiefPhysician; }
+    public void setChiefPhysician(String chiefPhysician) { this.chiefPhysician = chiefPhysician; }
+    public String getAttendingPhysician() { return attendingPhysician; }
+    public void setAttendingPhysician(String attendingPhysician) { this.attendingPhysician = attendingPhysician; }
+    public String getResidentPhysician() { return residentPhysician; }
+    public void setResidentPhysician(String residentPhysician) { this.residentPhysician = residentPhysician; }
+    public String getResponsibleNurse() { return responsibleNurse; }
+    public void setResponsibleNurse(String responsibleNurse) { this.responsibleNurse = responsibleNurse; }
+    public String getTraineePhysician() { return traineePhysician; }
+    public void setTraineePhysician(String traineePhysician) { this.traineePhysician = traineePhysician; }
+    public String getInternPhysician() { return internPhysician; }
+    public void setInternPhysician(String internPhysician) { this.internPhysician = internPhysician; }
+    public String getCoder() { return coder; }
+    public void setCoder(String coder) { this.coder = coder; }
+    public String getRecordQuality() { return recordQuality; }
+    public void setRecordQuality(String recordQuality) { this.recordQuality = recordQuality; }
+    public String getQcPhysician() { return qcPhysician; }
+    public void setQcPhysician(String qcPhysician) { this.qcPhysician = qcPhysician; }
+    public String getQcNurse() { return qcNurse; }
+    public void setQcNurse(String qcNurse) { this.qcNurse = qcNurse; }
+    public LocalDate getQcDate() { return qcDate; }
+    public void setQcDate(LocalDate qcDate) { this.qcDate = qcDate; }
     public String getSourceHospital() { return sourceHospital; }
     public void setSourceHospital(String sourceHospital) { this.sourceHospital = sourceHospital; }
     public String getSourcePdfPath() { return sourcePdfPath; }

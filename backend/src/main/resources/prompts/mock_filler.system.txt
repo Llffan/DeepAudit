@@ -2,17 +2,17 @@
 
 【硬性要求】
 1. 只输出一个 JSON 对象，不要任何解释性文字、不要 Markdown 代码围栏。
-2. 所有 main 字段都要出现，不允许缺键；除非生理上不存在（例如未做手术则手术相关字段全部为 null；非新生儿则 newborn*/ageDays 为 null）。
+2. 所有 main 字段都要出现，不允许缺键；除非生理上不存在（例如未做病理检查则病理字段为 null；非新生儿则 newborn*/ageDays 为 null）。
 3. 字段间要符合医学和数学一致性：
    - admissionDate 早于 dischargeDate（同年；可以跨月）
    - lengthOfStay = (dischargeDate − admissionDate) 的天数（≥ 1）
-   - totalCost ≈ drugCost + operationCost + medicalServiceCost + 杂项；不要让分项之和明显超过总额
    - age 与 birthDate 一致（用 dischargeDate 那年算）
    - 当 age == 0 时填 ageDays（0–364），同时 newbornBirthWeight / newbornAdmissionWeight 给合理值（2500–4500 g）；否则三者都为 null
    - gender 为 "男" 时不要出现 "Z37"、"O" 开头等产科诊断
-   - 若 mainOperationCode 为 null，则 mainOperationName / operationDate / operator / anesthesiaMethod 也为 null
+   - 若 drugAllergy == "无"，则 allergyDrugs 为 null；为 "有" 时给具体药名
+   - 若 dischargeStatus 不是 "死亡"，则 autopsy 一律为 null
    - mainDiagnosisCode 与 mainDiagnosisName 真实对应（ICD-10 国临版 2.0）
-   - mainOperationCode 与 mainOperationName 真实对应（ICD-9-CM-3 国临版 3.0）
+   - 若有损伤、中毒病例，injuryPoisoningCause / injuryPoisoningCode 都给值；否则均为 null
    - admissionDept 与 dischargeDept 通常一致；不一致时合理（如内科转外科）
 4. 多样化：每次生成请覆盖不同科室、不同年龄段，避免与上次生成结果雷同。
 5. 数值用普通数字（金额可保留两位小数），日期统一 yyyy-MM-dd。
@@ -79,16 +79,36 @@
     "otherDiagnosisCount":       integer,    // 应等于下方 diagnoses 数组长度
     "pathologicalDiagnosis":     string|null,
 
-    "mainOperationCode":      string|null,   // 真实 ICD-9-CM-3，例如 "47.0900"；非手术病例为 null
-    "mainOperationName":      string|null,
-    "operationDate":          string|null,
-    "operator":               string|null,   // 中文姓名
-    "anesthesiaMethod":       string|null,   // 全身麻醉 / 椎管内麻醉 / 局部麻醉 / 神经阻滞 / 其他 / 无
+    // 损伤、中毒（仅外因病例填）
+    "injuryPoisoningCause":       string|null,
+    "injuryPoisoningCode":        string|null,    // ICD-10 编码
 
-    "totalCost":              number,
-    "drugCost":               number,
-    "operationCost":          number,        // 非手术病例为 0
-    "medicalServiceCost":     number
+    // 病理（诊断名沿用 pathologicalDiagnosis）
+    "pathologicalDiagnosisCode":  string|null,
+    "pathologyNumber":            string|null,    // 病理号
+
+    // 过敏 / 尸检 / 血型
+    "drugAllergy":                string,         // "无" / "有"
+    "allergyDrugs":               string|null,    // drugAllergy=="有" 时填，否则 null
+    "autopsy":                    string|null,    // dischargeStatus=="死亡" 时填 "是"/"否"，否则 null
+    "bloodType":                  string,         // A / B / O / AB / 不详 / 未查
+    "rhBloodType":                string,         // 阴 / 阳 / 不详 / 未查
+
+    // 医生（中文姓名 2-3 字）
+    "departmentDirector":         string,
+    "chiefPhysician":             string,
+    "attendingPhysician":         string,
+    "residentPhysician":          string,
+    "responsibleNurse":           string,
+    "traineePhysician":           string|null,
+    "internPhysician":            string|null,
+    "coder":                      string,
+
+    // 质控
+    "recordQuality":              string,         // "甲" / "乙" / "丙"
+    "qcPhysician":                string,
+    "qcNurse":                    string,
+    "qcDate":                     string          // dischargeDate 后 1-7 天，yyyy-MM-dd
   },
 
   // 其他诊断 0-3 条；不含主诊（主诊由 main.mainDiagnosis* 表达）。

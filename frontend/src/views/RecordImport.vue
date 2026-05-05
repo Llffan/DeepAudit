@@ -8,15 +8,17 @@ import {
   emptyRecord,
   emptyOtherDiagnosis,
   GENDER_OPTIONS,
-  ICD_VER_OPTIONS,
   ADMISSION_ROUTE_OPTIONS,
-  DISCHARGE_STATUS_OPTIONS,
-  ANESTHESIA_OPTIONS,
   ID_CARD_TYPE_OPTIONS,
   MARITAL_STATUS_OPTIONS,
   CONTACT_RELATION_OPTIONS,
   ADMISSION_CONDITION_OPTIONS,
   DISCHARGE_CONDITION_OPTIONS,
+  DRUG_ALLERGY_OPTIONS,
+  AUTOPSY_OPTIONS,
+  BLOOD_TYPE_OPTIONS,
+  RH_OPTIONS,
+  RECORD_QUALITY_OPTIONS,
   BUSINESS_FIELDS,
   type MedicalRecord,
 } from '@/types/medicalRecord';
@@ -495,15 +497,22 @@ function buildPrintHtml(r: MedicalRecord): string {
   const mainDiag = diagGrid + diagLegend;
   const otherDiag = '';   // 已合并到 diagGrid 中
 
-  const operation = section('主要手术',
-    row2('主手术编码', r.mainOperationCode, '主手术名称', r.mainOperationName) +
-    row2('手术日期', r.operationDate, '麻醉方式', r.anesthesiaMethod) +
-    row1('手术医生', r.operator),
+  // V9: 损伤/中毒、病理、过敏、医生、质控（取代原"主要手术 / 费用"两块）
+  const supplementary = section('补充',
+    row2('损伤、中毒的外部因素', r.injuryPoisoningCause, '疾病编码', r.injuryPoisoningCode) +
+    row2('病理诊断', r.pathologicalDiagnosis, '疾病编码', r.pathologicalDiagnosisCode) +
+    row2('病理号', r.pathologyNumber, '药物过敏', r.drugAllergy) +
+    row2('过敏药物', r.allergyDrugs, '死亡患者尸检', r.autopsy) +
+    row2('血型', r.bloodType, 'Rh', r.rhBloodType),
   );
 
-  const cost = section('费用',
-    row2('总费用 (¥)', r.totalCost, '药品费 (¥)', r.drugCost) +
-    row2('手术费 (¥)', r.operationCost, '医疗服务费 (¥)', r.medicalServiceCost),
+  const doctors = section('医生',
+    row2('科主任', r.departmentDirector, '主(副主)任医生', r.chiefPhysician) +
+    row2('主治医生', r.attendingPhysician, '住院医生', r.residentPhysician) +
+    row2('责任护士', r.responsibleNurse, '进修医生', r.traineePhysician) +
+    row2('实习医生', r.internPhysician, '编码员', r.coder) +
+    row2('病案质量', r.recordQuality, '质控医师', r.qcPhysician) +
+    row2('质控护士', r.qcNurse, '质控日期', r.qcDate),
   );
 
   return `<!DOCTYPE html>
@@ -561,8 +570,8 @@ function buildPrintHtml(r: MedicalRecord): string {
 ${upper}
 ${mainDiag}
 ${otherDiag}
-${operation}
-${cost}
+${supplementary}
+${doctors}
 </body>
 </html>`;
 }
@@ -1116,93 +1125,147 @@ watch(
         <span><b>出院情况：</b>1.治愈 &nbsp; 2.好转 &nbsp; 3.未愈 &nbsp; 4.死亡 &nbsp; 5.其他</span>
       </div>
 
-      <el-divider content-position="left">主要手术</el-divider>
+      <!-- ───── V9 补充字段（损伤/病理/过敏/血型）───────────────────────── -->
+      <!-- 行 1: 损伤、中毒的外部因素 / 疾病编码 -->
       <el-row :gutter="16">
-        <el-col :span="6">
-          <el-form-item label="主手术编码">
-            <el-input
-              v-model="form.mainOperationCode"
-              placeholder="ICD-9-CM-3"
-              clearable
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="10">
-          <el-form-item label="主手术名称">
-            <el-input v-model="form.mainOperationName" clearable />
-          </el-form-item>
-        </el-col>
-        <el-col :span="4">
-          <el-form-item label="手术日期">
-            <el-date-picker
-              v-model="form.operationDate"
-              type="date"
-              value-format="YYYY-MM-DD"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="4">
-          <el-form-item label="麻醉方式">
-            <el-select v-model="form.anesthesiaMethod" clearable>
-              <el-option
-                v-for="o in ANESTHESIA_OPTIONS"
-                :key="o.value"
-                :label="o.label"
-                :value="o.value"
-              />
-            </el-select>
+        <el-col :span="18">
+          <el-form-item label="损伤、中毒的外部因素">
+            <el-input v-model="form.injuryPoisoningCause" clearable />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="手术医生">
-            <el-input v-model="form.operator" clearable />
+          <el-form-item label="疾病编码">
+            <el-input v-model="form.injuryPoisoningCode" clearable />
           </el-form-item>
         </el-col>
       </el-row>
 
-      <el-divider content-position="left">费用</el-divider>
+      <!-- 行 2: 病理诊断 / 疾病编码 / 病理号 -->
       <el-row :gutter="16">
-        <el-col :span="6">
-          <el-form-item label="总费用 (¥)">
-            <el-input-number
-              v-model="form.totalCost"
-              :min="0"
-              :precision="2"
-              :controls="false"
-              style="width: 100%"
-            />
+        <el-col :span="12">
+          <el-form-item label="病理诊断">
+            <el-input v-model="form.pathologicalDiagnosis" clearable />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="药品费 (¥)">
-            <el-input-number
-              v-model="form.drugCost"
-              :min="0"
-              :precision="2"
-              :controls="false"
-              style="width: 100%"
-            />
+          <el-form-item label="疾病编码">
+            <el-input v-model="form.pathologicalDiagnosisCode" clearable />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="手术费 (¥)">
-            <el-input-number
-              v-model="form.operationCost"
-              :min="0"
-              :precision="2"
-              :controls="false"
-              style="width: 100%"
-            />
+          <el-form-item label="病理号">
+            <el-input v-model="form.pathologyNumber" clearable />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <!-- 行 3: 药物过敏 / 过敏药物 / 死亡患者尸检 / 血型 / Rh -->
+      <el-row :gutter="16">
+        <el-col :span="4">
+          <el-form-item label="药物过敏">
+            <el-select v-model="form.drugAllergy" clearable placeholder="">
+              <el-option v-for="o in DRUG_ALLERGY_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="医疗服务费 (¥)">
-            <el-input-number
-              v-model="form.medicalServiceCost"
-              :min="0"
-              :precision="2"
-              :controls="false"
+          <el-form-item label="过敏药物">
+            <el-input v-model="form.allergyDrugs" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="4">
+          <el-form-item label="死亡患者尸检">
+            <el-select v-model="form.autopsy" clearable placeholder="">
+              <el-option v-for="o in AUTOPSY_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="5">
+          <el-form-item label="血型">
+            <el-select v-model="form.bloodType" clearable placeholder="">
+              <el-option v-for="o in BLOOD_TYPE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="5">
+          <el-form-item label="Rh">
+            <el-select v-model="form.rhBloodType" clearable placeholder="">
+              <el-option v-for="o in RH_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <!-- ───── V9 补充字段（医生）─────────────────────────────────────── -->
+      <!-- 医生行 1: 科主任 / 主(副主)任医生 / 主治医生 / 住院医生 / 责任护士 / 进修医生 / 实习医生 / 编码员 -->
+      <el-row :gutter="16">
+        <el-col :span="3">
+          <el-form-item label="科主任">
+            <el-input v-model="form.departmentDirector" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="主(副主)任医生">
+            <el-input v-model="form.chiefPhysician" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="主治医生">
+            <el-input v-model="form.attendingPhysician" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="住院医生">
+            <el-input v-model="form.residentPhysician" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="责任护士">
+            <el-input v-model="form.responsibleNurse" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="进修医生">
+            <el-input v-model="form.traineePhysician" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="实习医生">
+            <el-input v-model="form.internPhysician" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="编码员">
+            <el-input v-model="form.coder" clearable />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <!-- 医生行 3 (按用户布局，跳过行 2): 病案质量 / 质控医师 / 质控护士 / 质控日期 -->
+      <el-row :gutter="16">
+        <el-col :span="4">
+          <el-form-item label="病案质量">
+            <el-select v-model="form.recordQuality" clearable placeholder="">
+              <el-option v-for="o in RECORD_QUALITY_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="质控医师">
+            <el-input v-model="form.qcPhysician" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="质控护士">
+            <el-input v-model="form.qcNurse" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="质控日期">
+            <el-date-picker
+              v-model="form.qcDate"
+              type="date"
+              value-format="YYYY-MM-DD"
               style="width: 100%"
             />
           </el-form-item>

@@ -10,20 +10,6 @@ interface DslPreset { code: string; label: string; dsl: string; }
 
 const DSL_PRESETS: DslPreset[] = [
   {
-    code: 'R001',
-    label: 'R001 主手术编码完整性',
-    dsl: JSON.stringify({
-      when:   { op: 'notNull', field: 'mainOperationCode' },
-      assert: {
-        op: 'and',
-        args: [
-          { op: 'notNull', field: 'operator' },
-          { op: 'notNull', field: 'operationDate' },
-        ],
-      },
-    }, null, 2),
-  },
-  {
     code: 'R002',
     label: 'R002 入出院日期与住院天数逻辑',
     dsl: JSON.stringify({
@@ -39,6 +25,14 @@ const DSL_PRESETS: DslPreset[] = [
     }, null, 2),
   },
   {
+    code: 'V9-PATHOLOGY',
+    label: 'V9 病理诊断 + 编码同时存在',
+    dsl: JSON.stringify({
+      when:   { op: 'notNull', field: 'pathologicalDiagnosis' },
+      assert: { op: 'notNull', field: 'pathologicalDiagnosisCode' },
+    }, null, 2),
+  },
+  {
     code: 'CUSTOM',
     label: '自定义 / 留空',
     dsl: '',
@@ -50,49 +44,32 @@ const DSL_PRESETS: DslPreset[] = [
 interface RecordPreset { id: string; label: string; record: Record<string, unknown>; }
 
 const FULL_VALID_RECORD = {
-  recordNo:           'PA20260401-001',
-  name:               '张三',
-  gender:             '男',
-  age:                45,
-  admissionDate:      '2026-04-01',
-  dischargeDate:      '2026-04-08',
-  lengthOfStay:       7,
-  admissionDept:      '外科',
-  dischargeDept:      '外科',
-  mainDiagnosisCode:  'N20.0',
-  mainDiagnosisName:  '肾结石',
-  mainOperationCode:  '55.04',
-  mainOperationName:  '经皮肾镜碎石术',
-  operationDate:      '2026-04-02',
-  operator:           '李医生',
-  anesthesiaMethod:   '全身麻醉',
-  totalCost:          18650.50,
+  recordNo:                  'PA20260401-001',
+  name:                      '张三',
+  gender:                    '男',
+  age:                       45,
+  admissionDate:             '2026-04-01',
+  dischargeDate:             '2026-04-08',
+  lengthOfStay:              7,
+  admissionDept:             '外科',
+  dischargeDept:             '外科',
+  mainDiagnosisCode:         'N20.0',
+  mainDiagnosisName:         '肾结石',
+  // V9 supplementary 示例
+  pathologicalDiagnosis:     '肾结石伴慢性肾盂肾炎',
+  pathologicalDiagnosisCode: 'N20.0',
+  pathologyNumber:           'P20260402-017',
+  bloodType:                 'A',
+  rhBloodType:               '阳',
+  drugAllergy:               '无',
+  recordQuality:             '甲',
 };
 
 const RECORD_PRESETS: RecordPreset[] = [
   {
     id: 'all-pass',
-    label: '全字段正确（R001 + R002 都通过）',
+    label: '全字段正确（R002 + V9 病理示例都通过）',
     record: { ...FULL_VALID_RECORD },
-  },
-  {
-    id: 'r001-hit-operator',
-    label: 'R001 命中：手术医生缺失',
-    record: { ...FULL_VALID_RECORD, operator: null },
-  },
-  {
-    id: 'r001-hit-date',
-    label: 'R001 命中：手术日期缺失',
-    record: { ...FULL_VALID_RECORD, operationDate: null },
-  },
-  {
-    id: 'r001-na',
-    label: 'R001 不适用：无主手术编码',
-    record: {
-      ...FULL_VALID_RECORD,
-      mainOperationCode: null, mainOperationName: null,
-      operationDate: null, operator: null, anesthesiaMethod: null,
-    },
   },
   {
     id: 'r002-hit-length',
@@ -105,6 +82,11 @@ const RECORD_PRESETS: RecordPreset[] = [
     record: { ...FULL_VALID_RECORD, admissionDate: '2026-04-08', dischargeDate: '2026-04-01' },
   },
   {
+    id: 'v9-pathology-hit',
+    label: 'V9 病理示例命中：有诊断名但缺编码',
+    record: { ...FULL_VALID_RECORD, pathologicalDiagnosisCode: null },
+  },
+  {
     id: 'empty',
     label: '空记录（验证 null 防御）',
     record: {},
@@ -115,7 +97,7 @@ const RECORD_PRESETS: RecordPreset[] = [
 
 const route = useRoute();
 
-const dslPresetCode = ref<string>('R001');
+const dslPresetCode = ref<string>('R002');
 const recordPresetId = ref<string>('all-pass');
 
 const dslText = ref<string>(DSL_PRESETS[0].dsl);
