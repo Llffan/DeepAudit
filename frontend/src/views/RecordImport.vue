@@ -1502,9 +1502,11 @@ watch(
 .record-form :deep(.el-form-item__label) {
   font-size: 0.85rem;
   color: #555;
-  padding-right: 8px;          /* label 在 input 左侧时，留一点右边距 */
-  line-height: 1.3;
-  white-space: nowrap;         /* 字段名不换行：长字段如"工作单位及地址"保持单行显示 */
+  padding-right: 10px;         /* label 与输入框固定 10px 间距 */
+  line-height: 32px;           /* 与默认 el-input 等高，标签垂直居中 */
+  white-space: nowrap;         /* 字段名不换行 */
+  width: auto !important;      /* 按自身内容收缩，覆盖 label-width="auto" 的统一宽度 */
+  min-width: 0 !important;
 }
 
 .actions {
