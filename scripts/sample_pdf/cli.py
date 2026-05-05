@@ -11,7 +11,7 @@ import random
 import sys
 from pathlib import Path
 
-from .core import generate_pdf
+from .core import generate_pdf, render_from_fields
 from .traps import AVAILABLE_TRAPS
 
 
@@ -36,12 +36,26 @@ def parse_args(argv: list[str] | None = None):
                    help="header hospital name")
     p.add_argument("--prefix", type=str, default="case",
                    help="filename prefix (default: case)")
+    p.add_argument("--fields-json", type=str, default=None,
+                   help="JSON object of HQMS field values; renders one PDF from DB "
+                        "data, bypassing mock generator (ignores --count/--error-rate/--traps)")
     return p.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    # --fields-json path: render one PDF from pre-populated DB fields
+    if args.fields_json:
+        import json as _json
+        fields = _json.loads(args.fields_json)
+        pdf_path = args.out_dir / f"{args.prefix}_db_export.pdf"
+        gt = render_from_fields(fields, pdf_path, hospital_name=args.hospital)
+        traps_str = ", ".join(t["trap"] for t in gt["traps"]) or "db_export"
+        print(f"  [  1/1] {pdf_path.name}  ({traps_str})")
+        print(f"\nDone. Wrote 1 PDF + GT JSON to {args.out_dir}/")
+        return 0
 
     pool = args.traps or AVAILABLE_TRAPS
     rng = random.Random(args.seed)

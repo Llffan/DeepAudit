@@ -9,6 +9,51 @@ from .render import render_pdf
 from .traps import AVAILABLE_TRAPS, apply_traps
 
 
+def render_from_fields(
+    fields: dict,
+    output_pdf: str | Path,
+    *,
+    hospital_name: str = "DeepAudit 示例医院",
+    output_json: str | Path | None = None,
+) -> dict:
+    """Render a PDF directly from pre-populated HQMS field dict (no mock generation).
+
+    Parameters
+    ----------
+    fields:
+        Dict keyed by HQMS field codes, e.g. {'XM': '张三', 'BAH': '2024001', ...}.
+        Typically produced by mapping a DB MedicalRecordMain row.
+    output_pdf:
+        Path of the PDF to write.
+    hospital_name:
+        Header banner text (falls back to fields['JGMC'] inside render_pdf).
+    output_json:
+        Where to write the ground-truth JSON. Defaults to the PDF's path with
+        `.json` suffix.
+
+    Returns
+    -------
+    dict: ground-truth dict written to JSON.
+    """
+    pdf_path = Path(output_pdf)
+    json_path = Path(output_json) if output_json else pdf_path.with_suffix(".json")
+
+    render_pdf(fields, hospital_name=hospital_name, out_path=pdf_path)
+
+    ground_truth = {
+        "pdf": pdf_path.name,
+        "seed": None,
+        "traps": [],
+        "fields": fields,
+        "source": "db_export",
+    }
+    json_path.write_text(
+        json.dumps(ground_truth, ensure_ascii=False, indent=2, default=str),
+        encoding="utf-8",
+    )
+    return ground_truth
+
+
 def generate_pdf(
     output_pdf: str | Path,
     *,

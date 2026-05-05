@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
@@ -210,6 +210,118 @@ const passedCount = computed(() => {
   );
 });
 
+// ---- SSE explanation state --------------------------------------------------
+
+interface ExplainState {
+  open: boolean;
+  loading: boolean;
+  text: string;
+  error: string | null;
+}
+
+const explanations = reactive<Record<number, ExplainState>>({});
+const esMap = new Map<number, EventSource>();
+
+function ensureExplain(id: number): ExplainState {
+  if (!explanations[id]) {
+    explanations[id] = { open: false, loading: false, text: '', error: null };
+  }
+  return explanations[id];
+}
+
+function toggleExplain(id: number) {
+  const s = ensureExplain(id);
+  if (s.open) {
+    s.open = false;
+    return;
+  }
+  s.open = true;
+  if (s.text || s.loading) return; // already fetched / fetching
+  openExplain(id);
+}
+
+function openExplain(id: number) {
+  const s = ensureExplain(id);
+  s.loading = true;
+  s.error = null;
+
+  const es = new EventSource(`/api/check-results/${id}/explain`);
+  esMap.set(id, es);
+
+  es.addEventListener('cached', (e: MessageEvent) => {
+    s.text = e.data as string;
+    s.loading = false;
+    es.close();
+    esMap.delete(id);
+    // update hasExplanation in results list
+    markHasExplanation(id);
+  });
+
+  es.addEventListener('token', (e: MessageEvent) => {
+    s.text += e.data as string;
+  });
+
+  es.addEventListener('done', () => {
+    s.loading = false;
+    es.close();
+    esMap.delete(id);
+    markHasExplanation(id);
+  });
+
+  es.addEventListener('error', (e: MessageEvent) => {
+    s.loading = false;
+    s.error = e.data ? String(e.data) : 'LLM 服务暂时不可用';
+    es.close();
+    esMap.delete(id);
+  });
+
+  // network-level error (e.g. server down)
+  es.onerror = () => {
+    if (s.loading) {
+      s.loading = false;
+      s.error = '连接中断，请稍后重试';
+      es.close();
+      esMap.delete(id);
+    }
+  };
+}
+
+function markHasExplanation(id: number) {
+  if (!data.value) return;
+  const hit = data.value.results.find((r) => r.id === id);
+  if (hit) hit.hasExplanation = true;
+}
+
+// ---- status patch -----------------------------------------------------------
+
+const statusPending = reactive<Set<number>>(new Set());
+
+async function onPatchStatus(hit: CheckResultItem, newStatus: string) {
+  if (statusPending.has(hit.id)) return;
+  statusPending.add(hit.id);
+  try {
+    const res = await fetch(`/api/check-results/${hit.id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const updated = (await res.json()) as CheckResultItem;
+    hit.status = updated.status;
+  } catch (err) {
+    ElMessage.error('状态更新失败：' + (err instanceof Error ? err.message : String(err)));
+  } finally {
+    statusPending.delete(hit.id);
+  }
+}
+
+onUnmounted(() => {
+  for (const es of esMap.values()) es.close();
+  esMap.clear();
+});
+
+// -----------------------------------------------------------------------------
+
 function gotoEdit() {
   if (recordId.value == null) return;
   router.push({ path: '/import', query: { id: String(recordId.value) } });
@@ -386,7 +498,7 @@ function fmtTs(s: string | null) {
             v-for="hit in sortedResults"
             :key="hit.id"
             class="hit-card"
-            :class="`sev-${hit.severity}`"
+            :class="[`sev-${hit.severity}`, hit.status !== 'open' ? 'is-resolved' : '']"
           >
             <header class="hit-head">
               <el-icon class="hit-icon"><WarningFilled /></el-icon>
@@ -398,6 +510,19 @@ function fmtTs(s: string | null) {
               <span class="dim sep">·</span>
               <span class="rule-code">{{ hit.ruleCode }}</span>
               <span class="rule-name">{{ hit.ruleName }}</span>
+              <span class="head-spacer" />
+              <el-tag
+                v-if="hit.status === 'acknowledged'"
+                size="small"
+                type="success"
+                effect="plain"
+              >已认可</el-tag>
+              <el-tag
+                v-else-if="hit.status === 'false_positive'"
+                size="small"
+                type="info"
+                effect="plain"
+              >误报</el-tag>
             </header>
 
             <p class="hit-message">{{ hit.hitMessage }}</p>
@@ -412,26 +537,72 @@ function fmtTs(s: string | null) {
             </div>
 
             <footer class="hit-actions">
+              <!-- 解释按钮 -->
               <el-button
                 size="small"
                 :icon="ChatLineRound"
-                disabled
-                title="T4.3 后实现：流式 LLM 解释"
+                :loading="explanations[hit.id]?.loading && !explanations[hit.id]?.text"
+                @click="toggleExplain(hit.id)"
               >
-                查看人话解释
+                {{
+                  explanations[hit.id]?.open
+                    ? '收起解释'
+                    : hit.hasExplanation
+                      ? '查看解释（已缓存）'
+                      : '查看人话解释'
+                }}
               </el-button>
+
               <el-button size="small" :icon="Edit" @click="gotoEdit">
                 跳转到字段修正
               </el-button>
-              <el-button
-                size="small"
-                :icon="CircleClose"
-                disabled
-                title="T4.4 后实现：误报标记"
-              >
-                标记误报
-              </el-button>
+
+              <!-- 状态切换 -->
+              <template v-if="hit.status === 'open'">
+                <el-button
+                  size="small"
+                  type="success"
+                  plain
+                  :loading="statusPending.has(hit.id)"
+                  @click="onPatchStatus(hit, 'acknowledged')"
+                >认可</el-button>
+                <el-button
+                  size="small"
+                  type="info"
+                  plain
+                  :icon="CircleClose"
+                  :loading="statusPending.has(hit.id)"
+                  @click="onPatchStatus(hit, 'false_positive')"
+                >标记误报</el-button>
+              </template>
+              <template v-else>
+                <el-button
+                  size="small"
+                  plain
+                  :loading="statusPending.has(hit.id)"
+                  @click="onPatchStatus(hit, 'open')"
+                >{{ hit.status === 'acknowledged' ? '取消认可' : '取消误报' }}</el-button>
+              </template>
             </footer>
+
+            <!-- SSE 解释面板 -->
+            <div v-if="explanations[hit.id]?.open" class="explain-panel">
+              <div v-if="explanations[hit.id].error" class="explain-error">
+                {{ explanations[hit.id].error }}
+              </div>
+              <div
+                v-else-if="!explanations[hit.id].text && explanations[hit.id].loading"
+                class="explain-loading"
+              >
+                <span class="dot" />
+                <span class="dot" />
+                <span class="dot" />
+              </div>
+              <p v-else class="explain-text">
+                {{ explanations[hit.id].text
+                }}<span v-if="explanations[hit.id].loading" class="cursor" />
+              </p>
+            </div>
           </article>
         </div>
       </template>
@@ -659,5 +830,66 @@ function fmtTs(s: string | null) {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+/* resolved dimming */
+.hit-card.is-resolved {
+  opacity: 0.65;
+}
+
+/* header spacer pushes status tag to right */
+.head-spacer {
+  flex: 1;
+}
+
+/* SSE explanation panel */
+.explain-panel {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #f7f9fc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: #333;
+  border: 1px solid #e6eaf0;
+}
+.explain-error {
+  color: #d4380d;
+}
+.explain-loading {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 0.25rem 0;
+}
+.explain-loading .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1677ff;
+  animation: dot-bounce 1.2s infinite ease-in-out both;
+}
+.explain-loading .dot:nth-child(2) { animation-delay: 0.2s; }
+.explain-loading .dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dot-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40%            { transform: scale(1);   opacity: 1;   }
+}
+.explain-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: #1677ff;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 0.8s step-end infinite;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
 }
 </style>
