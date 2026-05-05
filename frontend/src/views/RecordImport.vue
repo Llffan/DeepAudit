@@ -1506,9 +1506,11 @@ watch(
 .record-form :deep(.el-form-item__label) {
   font-size: 0.85rem;
   color: #555;
-  padding-right: 8px;          /* label 在 input 左侧时，留一点右边距 */
+  padding-right: 10px;         /* label 与输入框固定 10px 间距 */
   line-height: 36px;           /* 与输入框等高：标签垂直居中在行中 */
   white-space: nowrap;         /* 字段名不换行：长字段如"工作单位及地址"保持单行显示 */
+  width: auto !important;      /* 覆盖 label-width="auto" 的对齐计算，按内容收缩 */
+  flex: 0 0 auto;              /* 不伸缩，让输入框紧贴标签右侧 */
 }
 
 .actions {
