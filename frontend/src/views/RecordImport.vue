@@ -418,53 +418,49 @@ function escapeHtml(s: unknown): string {
     .replace(/"/g, '&quot;');
 }
 
-function row2(l1: string, v1: unknown, l2: string, v2: unknown): string {
-  return `<tr><th>${l1}</th><td>${escapeHtml(v1)}</td><th>${l2}</th><td>${escapeHtml(v2)}</td></tr>`;
-}
-function row1(label: string, value: unknown, span = 3): string {
-  return `<tr><th>${label}</th><td colspan="${span}">${escapeHtml(value)}</td></tr>`;
-}
-// 小标题已按需求移除，section 仅作为内容分组工具，输出纯表格
-function section(_title: string, body: string): string {
-  return `<table>${body}</table>`;
-}
+// PDF 整页采用 24 列 grid（与前端 el-col span 同基）。
+//
+// 实现：所有"label + 输入框"行共用一个 24 列 colgroup 的大表，每个字段
+// 写成 <th colspan=L><td colspan=V> 两格，L+V = 该字段在前端的 span。
+// 同一列边界（例如 col 6/12/18）的字段会自然纵向对齐 —— 比如行 11 的
+// 入院时间(span=6) / 入院科别(span=6) / 病房(span=6) / 转科(span=6) 与
+// 行 12 的出院时间(6) / 出院科别(6) / 病房(6) / 实际住院(6) 完全对齐。
+//
+// labelCols 按字段名字符数 × 0.5 估算（夹在 [2, span-1]），让"姓名"窄、
+// "(不足1岁的)年龄(天)"宽，但保留至少 1 col 给值。
 
-// 14 行布局每行 1 个独立 <table>，相邻表通过 CSS 负 margin 黏合。
-// 每对 [label, value, weight?] —— weight 默认 1，按 weight 比例分配 td 列宽，
-// 让长字段（地址、诊断名）占更宽空间、短字段（邮编、年龄）占更窄空间。
-// th 列宽由 CSS 自动按字段名长度收缩（width:1px + nowrap = shrink-to-fit）。
-type RowPair = [string, unknown] | [string, unknown, number];
-function rowTable(...pairs: RowPair[]): string {
-  const weights = pairs.map((p) => (typeof p[2] === 'number' ? p[2] : 1));
-  const total = weights.reduce((s, w) => s + w, 0);
-  const cells = pairs
-    .map(([l, v], i) => {
-      const tdPct = (weights[i] / total) * 100;
-      return `<th>${l}</th><td style="width:${tdPct.toFixed(2)}%">${escapeHtml(v)}</td>`;
-    })
-    .join('');
-  return `<table class="row"><tr>${cells}</tr></table>`;
+type GridCell = [label: string, value: unknown, span: number];
+function gridRow(...cells: GridCell[]): string {
+  const html = cells.map(([l, v, span]) => {
+    const labelCols = Math.min(span - 1, Math.max(2, Math.ceil(l.length * 0.5)));
+    const valueCols = span - labelCols;
+    return `<th colspan="${labelCols}">${l}</th><td colspan="${valueCols}">${escapeHtml(v)}</td>`;
+  }).join('');
+  return `<tr>${html}</tr>`;
+}
+const COLGROUP_24 = '<colgroup>' + '<col>'.repeat(24) + '</colgroup>';
+function gridTable(rows: string): string {
+  return `<table class="grid">${COLGROUP_24}${rows}</table>`;
 }
 
 function buildPrintHtml(r: MedicalRecord): string {
-  // 病案号头（必填主键，单独一行）— 来源医院字段较长给 weight 4
-  const head = rowTable(['病案号', r.recordNo, 1], ['来源医院', r.sourceHospital, 4]);
+  // 病案号 + 来源医院（必填头）span 8 + 16 = 24
+  const head = gridRow(['病案号', r.recordNo, 8], ['来源医院', r.sourceHospital, 16]);
 
-  // 严格按用户列出的 14 行布局，行 9/13 跳过；行 1~14 每行一个 rowTable
-  // weight 按字段值的常见字符长度分配（例如：地址 5、诊断名 3、邮编 1）
-  const r1  = rowTable(['姓名', r.name, 3], ['性别', r.gender, 1], ['出生日期', r.birthDate, 2], ['年龄', r.age, 1], ['国籍', r.nationality, 2]);
-  const r2  = rowTable(['(不足1岁的)年龄(天)', r.ageDays, 1], ['新生儿出生体重 (g)', r.newbornBirthWeight, 1], ['新生儿入院体重 (g)', r.newbornAdmissionWeight, 1]);
-  const r3  = rowTable(['出生地', r.birthPlace, 2], ['籍贯', r.nativePlace, 2], ['民族', r.ethnicity, 1]);
-  const r4  = rowTable(['证件类型', r.idCardType, 2], ['证件号', r.idCardMasked, 4], ['职业', r.occupation, 2], ['婚姻', r.maritalStatus, 1]);
-  const r5  = rowTable(['现住址', r.currentAddress, 5], ['电话', r.currentPhone, 2], ['邮编', r.currentZip, 1]);
-  const r6  = rowTable(['户口地址', r.registeredAddress, 5], ['邮编', r.registeredZip, 1]);
-  const r7  = rowTable(['工作单位及地址', r.workplace, 5], ['单位电话', r.workPhone, 2], ['邮编', r.workZip, 1]);
-  const r8  = rowTable(['联系人姓名', r.contactName, 2], ['关系', r.contactRelation, 1], ['地址', r.contactAddress, 4], ['电话', r.contactPhone, 2]);
-  const r10 = rowTable(['入院途径', r.admissionRoute, 1]);
-  const r11 = rowTable(['入院时间', r.admissionDate, 2], ['入院科别', r.admissionDept, 2], ['病房', r.admissionWard, 1], ['转科科别', r.specialtyDept, 2]);
-  const r12 = rowTable(['出院时间', r.dischargeDate, 2], ['出院科别', r.dischargeDept, 2], ['病房', r.dischargeWard, 1], ['实际住院(天)', r.lengthOfStay, 1]);
-  const r14 = rowTable(['门(急)诊诊断', r.outpatientDiagnosis, 3], ['疾病编码', r.outpatientDiagnosisCode, 2], ['入院情况', r.outpatientAdmissionCondition, 1], ['入院后确诊日期', r.confirmedAfterAdmissionDate, 2]);
-  const upper = head + r1 + r2 + r3 + r4 + r5 + r6 + r7 + r8 + r10 + r11 + r12 + r14;
+  // 行 1~14（行 9/13 跳过），span 严格按前端 el-col 写
+  const r1  = gridRow(['姓名', r.name, 5], ['性别', r.gender, 4], ['出生日期', r.birthDate, 5], ['年龄', r.age, 4], ['国籍', r.nationality, 6]);
+  const r2  = gridRow(['(不足1岁的)年龄(天)', r.ageDays, 8], ['新生儿出生体重 (g)', r.newbornBirthWeight, 8], ['新生儿入院体重 (g)', r.newbornAdmissionWeight, 8]);
+  const r3  = gridRow(['出生地', r.birthPlace, 8], ['籍贯', r.nativePlace, 8], ['民族', r.ethnicity, 8]);
+  const r4  = gridRow(['证件类型', r.idCardType, 5], ['证件号', r.idCardMasked, 7], ['职业', r.occupation, 6], ['婚姻', r.maritalStatus, 6]);
+  const r5  = gridRow(['现住址', r.currentAddress, 12], ['电话', r.currentPhone, 7], ['邮编', r.currentZip, 5]);
+  const r6  = gridRow(['户口地址', r.registeredAddress, 18], ['邮编', r.registeredZip, 6]);
+  const r7  = gridRow(['工作单位及地址', r.workplace, 12], ['单位电话', r.workPhone, 7], ['邮编', r.workZip, 5]);
+  const r8  = gridRow(['联系人姓名', r.contactName, 5], ['关系', r.contactRelation, 4], ['地址', r.contactAddress, 8], ['电话', r.contactPhone, 7]);
+  const r10 = gridRow(['入院途径', r.admissionRoute, 24]);
+  const r11 = gridRow(['入院时间', r.admissionDate, 6], ['入院科别', r.admissionDept, 6], ['病房', r.admissionWard, 6], ['转科科别', r.specialtyDept, 6]);
+  const r12 = gridRow(['出院时间', r.dischargeDate, 6], ['出院科别', r.dischargeDept, 6], ['病房', r.dischargeWard, 6], ['实际住院(天)', r.lengthOfStay, 6]);
+  const r14 = gridRow(['门(急)诊诊断', r.outpatientDiagnosis, 8], ['疾病编码', r.outpatientDiagnosisCode, 6], ['入院情况', r.outpatientAdmissionCondition, 4], ['入院后确诊日期', r.confirmedAfterAdmissionDate, 6]);
+  const upper = gridTable(head + r1 + r2 + r3 + r4 + r5 + r6 + r7 + r8 + r10 + r11 + r12 + r14);
 
   // ─── 出院诊断网格（4 列 × 动态行，与前端同布局）──────────────────────
   // 行 1 = 主诊；行 2..N = r.diagnoses[]（已 filter 空行 / 提交前已 reseq）
@@ -504,23 +500,15 @@ function buildPrintHtml(r: MedicalRecord): string {
   const mainDiag = diagGrid + diagLegend;
   const otherDiag = '';   // 已合并到 diagGrid 中
 
-  // V9: 损伤/中毒、病理、过敏、医生、质控（取代原"主要手术 / 费用"两块）
-  const supplementary = section('补充',
-    row2('损伤、中毒的外部因素', r.injuryPoisoningCause, '疾病编码', r.injuryPoisoningCode) +
-    row2('病理诊断', r.pathologicalDiagnosis, '疾病编码', r.pathologicalDiagnosisCode) +
-    row2('病理号', r.pathologyNumber, '药物过敏', r.drugAllergy) +
-    row2('过敏药物', r.allergyDrugs, '死亡患者尸检', r.autopsy) +
-    row2('血型', r.bloodType, 'Rh', r.rhBloodType),
-  );
-
-  const doctors = section('医生',
-    row2('科主任', r.departmentDirector, '主(副主)任医生', r.chiefPhysician) +
-    row2('主治医生', r.attendingPhysician, '住院医生', r.residentPhysician) +
-    row2('责任护士', r.responsibleNurse, '进修医生', r.traineePhysician) +
-    row2('实习医生', r.internPhysician, '编码员', r.coder) +
-    row2('病案质量', r.recordQuality, '质控医师', r.qcPhysician) +
-    row2('质控护士', r.qcNurse, '质控日期', r.qcDate),
-  );
+  // V9 补充字段（损伤/病理/过敏/血型/医生/质控）— span 严格按前端布局，
+  // 同样走 24 列 grid，便于和上半 14 行块在共享列边界对齐。
+  const inj  = gridRow(['损伤、中毒的外部因素', r.injuryPoisoningCause, 18], ['疾病编码', r.injuryPoisoningCode, 6]);
+  const pat  = gridRow(['病理诊断', r.pathologicalDiagnosis, 12], ['疾病编码', r.pathologicalDiagnosisCode, 6], ['病理号', r.pathologyNumber, 6]);
+  const alg  = gridRow(['药物过敏', r.drugAllergy, 4], ['过敏药物', r.allergyDrugs, 6], ['死亡患者尸检', r.autopsy, 4], ['血型', r.bloodType, 5], ['Rh', r.rhBloodType, 5]);
+  const doc1 = gridRow(['科主任', r.departmentDirector, 6], ['主(副主)任医生', r.chiefPhysician, 6], ['主治医生', r.attendingPhysician, 6], ['住院医生', r.residentPhysician, 6]);
+  const doc2 = gridRow(['责任护士', r.responsibleNurse, 6], ['进修医生', r.traineePhysician, 6], ['实习医生', r.internPhysician, 6], ['编码员', r.coder, 6]);
+  const qc   = gridRow(['病案质量', r.recordQuality, 4], ['质控医师', r.qcPhysician, 6], ['质控护士', r.qcNurse, 6], ['质控日期', r.qcDate, 8]);
+  const lower = gridTable(inj + pat + alg + doc1 + doc2 + qc);
 
   return `<!DOCTYPE html>
 <html lang="zh">
@@ -537,18 +525,19 @@ function buildPrintHtml(r: MedicalRecord): string {
   th { font-weight: 600; background: #fff; text-align: left; }
   thead th { text-align: center; }
 
-  /* 14 行 row 表：th 列宽自动按字段名长度收缩；td 列宽由 inline style 按 weight 分配；
-     单行高度恒定，超长内容自动省略号截断（不换行、不撑高） */
-  table.row { table-layout: auto; }
-  table.row th {
-    width: 1%;                    /* + nowrap = shrink-to-fit；浏览器按 th 内容宽度自动收缩 */
-    white-space: nowrap;
-    padding: 4px 10px 4px 8px;
-  }
-  table.row td {
+  /* 24 列 grid 表：colgroup 决定列等宽，每个字段 <th colspan=L><td colspan=V>。
+     fixed table-layout 让 colspan 严格按 col 宽度计算 → 跨行同一列边界自然对齐。 */
+  table.grid { table-layout: fixed; }
+  table.grid th, table.grid td {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  table.grid th {
+    padding: 4px 6px;
+  }
+  table.grid td {
+    padding: 4px 8px;
   }
 
   /* 诊断网格：4 列按内容长短分配（出院诊断 40% / 疾病编码 20% / 入院病情 20% / 出院情况 20%） */
@@ -577,8 +566,7 @@ function buildPrintHtml(r: MedicalRecord): string {
 ${upper}
 ${mainDiag}
 ${otherDiag}
-${supplementary}
-${doctors}
+${lower}
 </body>
 </html>`;
 }
