@@ -1520,6 +1520,17 @@ watch(
   max-width: none !important;
   min-width: 0;                   /* 允许 flex item 收缩，避免内容撑爆 */
 }
+/* 输入框占满标签外的剩余宽度：content 区 flex:1，内部控件强制 100% */
+.record-form :deep(.el-form-item__content) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.record-form :deep(.el-form-item__content > .el-input),
+.record-form :deep(.el-form-item__content > .el-select),
+.record-form :deep(.el-form-item__content > .el-input-number),
+.record-form :deep(.el-form-item__content > .el-date-editor) {
+  width: 100% !important;
+}
 
 .actions {
   position: sticky;
