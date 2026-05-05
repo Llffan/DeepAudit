@@ -751,6 +751,7 @@ watch(
       :model="form"
       :rules="rules"
       label-position="left"
+      label-width="auto"
       class="record-form"
     >
       <!-- 病案号 + 来源医院（必填头，固定在 14 行布局之前） -->
@@ -1434,14 +1435,9 @@ watch(
   border-radius: 8px;
   padding: 0.4rem 1.25rem 1rem;
 }
-/* 每一行整体撑高：行内标签按输入框高度居中，行间留出充足节奏感 */
+/* 压缩 el-form-item 默认上下间距：默认 18px → 8px，让 14 行布局更紧凑 */
 .record-form :deep(.el-form-item) {
-  margin-bottom: 14px;
-  min-height: 36px;
-}
-.record-form :deep(.el-form-item__content) {
-  min-height: 36px;
-  line-height: 36px;
+  margin-bottom: 8px;
 }
 /* 诊断网格：10 行 × 2 列固定布局，左 4 列 + 右 4 列 */
 .diag-grid {
@@ -1507,22 +1503,9 @@ watch(
 .record-form :deep(.el-form-item__label) {
   font-size: 0.85rem;
   color: #555;
-  padding: 0 10px 0 0 !important;  /* 标签到输入框固定 10px，禁掉 EP 默认 padding */
-  margin: 0 !important;
-  line-height: 36px;               /* 与输入框等高：标签垂直居中在行中 */
-  white-space: nowrap;             /* 字段名不换行 */
-  width: auto !important;          /* 按自身内容收缩，不和别人对齐 */
-  min-width: 0 !important;
-  max-width: none !important;
-  flex: 0 0 auto !important;       /* 不伸缩，输入框紧贴标签右侧 */
-}
-.record-form :deep(.el-form-item__content) {
-  margin-left: 0 !important;       /* 避免 EP 残留的 margin-left 把输入框推开 */
-  flex: 1 1 auto;
-}
-.record-form :deep(.el-form-item) {
-  display: flex;
-  align-items: center;
+  padding-right: 8px;          /* label 在 input 左侧时，留一点右边距 */
+  line-height: 1.3;
+  white-space: nowrap;         /* 字段名不换行：长字段如"工作单位及地址"保持单行显示 */
 }
 
 .actions {
