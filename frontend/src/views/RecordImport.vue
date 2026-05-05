@@ -846,7 +846,7 @@ watch(
       <el-row :gutter="16">
         <el-col :span="5">
           <el-form-item label="证件类型">
-            <el-select v-model="form.idCardType" clearable placeholder="">
+            <el-select v-model="form.idCardType" clearable>
               <el-option v-for="o in ID_CARD_TYPE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -863,7 +863,7 @@ watch(
         </el-col>
         <el-col :span="6">
           <el-form-item label="婚姻">
-            <el-select v-model="form.maritalStatus" clearable placeholder="">
+            <el-select v-model="form.maritalStatus" clearable>
               <el-option v-for="o in MARITAL_STATUS_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -931,7 +931,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="关系">
-            <el-select v-model="form.contactRelation" clearable placeholder="">
+            <el-select v-model="form.contactRelation" clearable>
               <el-option v-for="o in CONTACT_RELATION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -952,7 +952,7 @@ watch(
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="入院途径">
-            <el-select v-model="form.admissionRoute" clearable placeholder="">
+            <el-select v-model="form.admissionRoute" clearable>
               <el-option v-for="o in ADMISSION_ROUTE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -1022,7 +1022,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="入院情况">
-            <el-select v-model="form.outpatientAdmissionCondition" clearable placeholder="">
+            <el-select v-model="form.outpatientAdmissionCondition" clearable>
               <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -1071,7 +1071,6 @@ watch(
                 :model-value="form.mainAdmissionCondition"
                 @update:model-value="(v) => form.mainAdmissionCondition = v || null"
                 clearable
-                placeholder=""
               >
                 <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
@@ -1082,7 +1081,6 @@ watch(
                 :model-value="form.mainDischargeCondition"
                 @update:model-value="(v) => form.mainDischargeCondition = v || null"
                 clearable
-                placeholder=""
               >
                 <el-option v-for="o in DISCHARGE_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
@@ -1095,12 +1093,12 @@ watch(
             <td><el-input size="small" v-model="d.diagnosisName" /></td>
             <td><el-input size="small" v-model="d.diagnosisCode" /></td>
             <td>
-              <el-select size="small" v-model="d.admissionCondition" clearable placeholder="">
+              <el-select size="small" v-model="d.admissionCondition" clearable>
                 <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
             </td>
             <td>
-              <el-select size="small" v-model="d.dischargeCondition" clearable placeholder="">
+              <el-select size="small" v-model="d.dischargeCondition" clearable>
                 <el-option v-for="o in DISCHARGE_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
             </td>
@@ -1146,7 +1144,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="麻醉方式">
-            <el-select v-model="form.anesthesiaMethod" clearable placeholder="">
+            <el-select v-model="form.anesthesiaMethod" clearable>
               <el-option
                 v-for="o in ANESTHESIA_OPTIONS"
                 :key="o.value"
@@ -1435,9 +1433,9 @@ watch(
   border-radius: 8px;
   padding: 0.4rem 1.25rem 1rem;
 }
-/* el-form-item 行间距：8px → 12px，每行视觉节奏更舒展 */
+/* 压缩 el-form-item 默认上下间距：默认 18px → 8px，让 14 行布局更紧凑 */
 .record-form :deep(.el-form-item) {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 /* 诊断网格：10 行 × 2 列固定布局，左 4 列 + 右 4 列 */
 .diag-grid {
@@ -1503,33 +1501,9 @@ watch(
 .record-form :deep(.el-form-item__label) {
   font-size: 0.85rem;
   color: #555;
-  padding-right: 4px !important;  /* label 紧贴输入框：固定 4px */
+  padding-right: 8px;          /* label 在 input 左侧时，留一点右边距 */
   line-height: 1.3;
-  white-space: nowrap;            /* 字段名不换行 */
-  width: auto !important;         /* 按自身内容收缩，不和别人对齐 */
-  min-width: 0 !important;
-}
-/* 行内每列等宽：用 flex 覆盖 EP 24 栅格的固定 span，让一行里的
-   每个"标签 + 输入框"单元宽度相同。 */
-.record-form :deep(.el-row) {
-  display: flex;
-}
-.record-form :deep(.el-row > .el-col) {
-  flex: 1 1 0 !important;
-  width: auto !important;
-  max-width: none !important;
-  min-width: 0;                   /* 允许 flex item 收缩，避免内容撑爆 */
-}
-/* 输入框占满标签外的剩余宽度：content 区 flex:1，内部控件强制 100% */
-.record-form :deep(.el-form-item__content) {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.record-form :deep(.el-form-item__content > .el-input),
-.record-form :deep(.el-form-item__content > .el-select),
-.record-form :deep(.el-form-item__content > .el-input-number),
-.record-form :deep(.el-form-item__content > .el-date-editor) {
-  width: 100% !important;
+  white-space: nowrap;         /* 字段名不换行：长字段如"工作单位及地址"保持单行显示 */
 }
 
 .actions {
