@@ -3,10 +3,7 @@ package com.deepaudit.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import dev.langchain4j.data.image.Image;
-import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import org.slf4j.Logger;
@@ -19,8 +16,6 @@ import org.springframework.util.StreamUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 
@@ -51,7 +46,7 @@ public class MedicalRecordExtractor {
     private static final Logger log = LoggerFactory.getLogger(MedicalRecordExtractor.class);
 
     private static final String SYSTEM_PROMPT_RESOURCE = "prompts/extractor.system.txt";
-    private static final String USER_INSTRUCTION = "请抽取以下病案首页图片中的字段，按系统消息约定的 JSON 结构输出。";
+    private static final String USER_INSTRUCTION = "请抽取以下病案首页文字内容中的字段，按系统消息约定的 JSON 结构输出。\n\n";
 
     /** White-listed main keys; anything else returned by the model is moved to extra. */
     private static final Set<String> MAIN_KEYS = Set.of(
@@ -80,34 +75,23 @@ public class MedicalRecordExtractor {
         return chatModelProvider.getIfAvailable() != null;
     }
 
-    public ExtractionResult extract(List<byte[]> pagePngs) {
+    public ExtractionResult extractFromText(String pdfText) {
         ChatLanguageModel chat = chatModelProvider.getIfAvailable();
         if (chat == null) {
-            return degraded("LLM 未配置 (GEMINI_API_KEY 缺失)");
+            return degraded("LLM 未配置（缺少 DEEPSEEK_API_KEY）");
         }
-        if (pagePngs == null || pagePngs.isEmpty()) {
-            return degraded("PDF 未渲染出任何页面");
-        }
-
-        List<dev.langchain4j.data.message.Content> userParts = new ArrayList<>(pagePngs.size() + 1);
-        userParts.add(TextContent.from(USER_INSTRUCTION));
-        for (byte[] png : pagePngs) {
-            String base64 = Base64.getEncoder().encodeToString(png);
-            Image img = Image.builder()
-                .base64Data(base64)
-                .mimeType("image/png")
-                .build();
-            userParts.add(ImageContent.from(img));
+        if (pdfText == null || pdfText.isBlank()) {
+            return degraded("PDF 未提取到文字内容（可能是扫描件或加密 PDF）");
         }
 
         String raw;
         try {
             raw = chat.generate(List.of(
                 SystemMessage.from(systemPrompt),
-                UserMessage.from(userParts)
+                UserMessage.from(USER_INSTRUCTION + pdfText)
             )).content().text();
         } catch (RuntimeException e) {
-            log.warn("Gemini multimodal extract call failed: {}", e.toString());
+            log.warn("LLM text extract call failed: {}", e.toString());
             return degraded("LLM 调用失败：" + e.getMessage());
         }
 
@@ -161,7 +145,7 @@ public class MedicalRecordExtractor {
             return degraded("LLM 输出 main 不是对象");
         }
 
-        // Clamp confidence to [0,1]; Gemini sometimes returns 1.0+ or stray strings.
+        // Clamp confidence to [0,1]; LLM sometimes returns 1.0+ or stray strings.
         if (confidence < 0.0) confidence = 0.0;
         if (confidence > 1.0) confidence = 1.0;
 
