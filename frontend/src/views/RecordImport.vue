@@ -1204,44 +1204,48 @@ watch(
       </el-row>
 
       <!-- ───── V9 补充字段（医生）─────────────────────────────────────── -->
-      <!-- 医生行 1: 科主任 / 主(副主)任医生 / 主治医生 / 住院医生 / 责任护士 / 进修医生 / 实习医生 / 编码员 -->
+      <!-- 医生行 1a: 科主任 / 主(副主)任医生 / 主治医生 / 住院医生 -->
       <el-row :gutter="16">
-        <el-col :span="3">
+        <el-col :span="6">
           <el-form-item label="科主任">
             <el-input v-model="form.departmentDirector" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+        <el-col :span="6">
           <el-form-item label="主(副主)任医生">
             <el-input v-model="form.chiefPhysician" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+        <el-col :span="6">
           <el-form-item label="主治医生">
             <el-input v-model="form.attendingPhysician" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+        <el-col :span="6">
           <el-form-item label="住院医生">
             <el-input v-model="form.residentPhysician" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+      </el-row>
+
+      <!-- 医生行 1b: 责任护士 / 进修医生 / 实习医生 / 编码员 -->
+      <el-row :gutter="16">
+        <el-col :span="6">
           <el-form-item label="责任护士">
             <el-input v-model="form.responsibleNurse" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+        <el-col :span="6">
           <el-form-item label="进修医生">
             <el-input v-model="form.traineePhysician" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+        <el-col :span="6">
           <el-form-item label="实习医生">
             <el-input v-model="form.internPhysician" clearable />
           </el-form-item>
         </el-col>
-        <el-col :span="3">
+        <el-col :span="6">
           <el-form-item label="编码员">
             <el-input v-model="form.coder" clearable />
           </el-form-item>
