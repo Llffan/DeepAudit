@@ -133,33 +133,81 @@ public class SamplePdfTool {
         MedicalRecordMain r = recordRepository.findById(recordId)
             .orElseThrow(() -> new NotFoundException("病案 #" + recordId + " 不存在"));
 
+        // HQMS 短码映射，来自 scripts/sample_pdf/spec.py V1_TO_HQMS 字典
+        // （以 docs/病案首页与质控业务/病案标准.xlsx 为权威源）。
+        // 字段顺序按表单分组：识别 → 人口学 → 联系 → 入出院 → 门急诊诊断 → 主诊 → 主术 → 费用 → 机构。
         Map<String, String> fields = new LinkedHashMap<>();
-        put(fields, "BAH",        r.getRecordNo());
-        put(fields, "XM",         r.getName());
-        put(fields, "XB",         r.getGender());
-        put(fields, "NL",         r.getAge());
-        put(fields, "CSRQ",       r.getBirthDate());
-        put(fields, "SFZH",       r.getIdCardMasked());
-        put(fields, "RYSJ",       r.getAdmissionDate());
-        put(fields, "CYSJ",       r.getDischargeDate());
-        put(fields, "SJZY",       r.getLengthOfStay());
-        put(fields, "RYKB",       r.getAdmissionDept());
-        put(fields, "CYKB",       r.getDischargeDept());
-        put(fields, "RYTJ",       r.getAdmissionRoute());
-        put(fields, "LYFS",       r.getDischargeStatus());
-        put(fields, "ZYZD_JBBM", r.getMainDiagnosisCode());
-        put(fields, "ZYZD",       r.getMainDiagnosisName());
-        put(fields, "BLZD",       r.getPathologicalDiagnosis());
-        put(fields, "SSJCZBM1",   r.getMainOperationCode());
-        put(fields, "SSJCZMC1",   r.getMainOperationName());
-        put(fields, "SSJCZRQ1",   r.getOperationDate());
-        put(fields, "SZ1",        r.getOperator());
-        put(fields, "MZFS1",      r.getAnesthesiaMethod());
-        put(fields, "ZFY",        r.getTotalCost());
-        put(fields, "XYF",        r.getDrugCost());
-        put(fields, "SSF",        r.getOperationCost());
-        put(fields, "YLFWF",      r.getMedicalServiceCost());
-        put(fields, "JGMC",       r.getSourceHospital());
+
+        // 识别
+        put(fields, "BAH",          r.getRecordNo());
+        put(fields, "XM",           r.getName());
+        put(fields, "XB",           r.getGender());
+        put(fields, "NL",           r.getAge());
+        put(fields, "CSRQ",         r.getBirthDate());
+        put(fields, "SFZH",         r.getIdCardMasked());
+
+        // V6 — 人口学扩展（idCardType 在 HQMS 标准中无专属字段，故不导出）
+        put(fields, "GJ",           r.getNationality());
+        put(fields, "BZYZS_NL",     r.getAgeDays());
+        put(fields, "XSETZ",        r.getNewbornBirthWeight());
+        put(fields, "XSERYTZ",      r.getNewbornAdmissionWeight());
+        put(fields, "CSD",          r.getBirthPlace());
+        put(fields, "GG",           r.getNativePlace());
+        put(fields, "MZ",           r.getEthnicity());
+        put(fields, "ZY",           r.getOccupation());
+        put(fields, "HY",           r.getMaritalStatus());
+
+        // V6 — 联系方式
+        put(fields, "XZZ",          r.getCurrentAddress());
+        put(fields, "DH",           r.getCurrentPhone());
+        put(fields, "YB1",          r.getCurrentZip());
+        put(fields, "HKDZ",         r.getRegisteredAddress());
+        put(fields, "YB2",          r.getRegisteredZip());
+        put(fields, "GZDWJDZ",      r.getWorkplace());
+        put(fields, "DWDH",         r.getWorkPhone());
+        put(fields, "YB3",          r.getWorkZip());
+        put(fields, "LXRXM",        r.getContactName());
+        put(fields, "GX",           r.getContactRelation());
+        put(fields, "DZ",           r.getContactAddress());
+        put(fields, "DH1",          r.getContactPhone());
+
+        // 入出院
+        put(fields, "RYSJ",         r.getAdmissionDate());
+        put(fields, "CYSJ",         r.getDischargeDate());
+        put(fields, "SJZY",         r.getLengthOfStay());
+        put(fields, "RYKB",         r.getAdmissionDept());
+        put(fields, "RYBF",         r.getAdmissionWard());
+        put(fields, "ZKKB",         r.getSpecialtyDept());
+        put(fields, "CYKB",         r.getDischargeDept());
+        put(fields, "CYBF",         r.getDischargeWard());
+        put(fields, "RYTJ",         r.getAdmissionRoute());
+        put(fields, "LYFS",         r.getDischargeStatus());
+
+        // 门(急)诊诊断（写到西医诊断槽）
+        put(fields, "MZZD_XYZD",    r.getOutpatientDiagnosis());
+        put(fields, "JBBM",         r.getOutpatientDiagnosisCode());
+
+        // 出院主诊
+        put(fields, "ZYZD_JBBM",    r.getMainDiagnosisCode());
+        put(fields, "ZYZD",         r.getMainDiagnosisName());
+        put(fields, "XY_RYBQ",      r.getMainAdmissionCondition()); // V7 — 主诊入院病况
+        put(fields, "BLZD",         r.getPathologicalDiagnosis());
+
+        // 主手术
+        put(fields, "SSJCZBM1",     r.getMainOperationCode());
+        put(fields, "SSJCZMC1",     r.getMainOperationName());
+        put(fields, "SSJCZRQ1",     r.getOperationDate());
+        put(fields, "SZ1",          r.getOperator());
+        put(fields, "MZFS1",        r.getAnesthesiaMethod());
+
+        // 费用
+        put(fields, "ZFY",          r.getTotalCost());
+        put(fields, "XYF",          r.getDrugCost());
+        put(fields, "SSF",          r.getOperationCost());
+        put(fields, "YLFWF",        r.getMedicalServiceCost());
+
+        // 机构
+        put(fields, "JGMC",         r.getSourceHospital());
 
         String fieldsJson;
         try {

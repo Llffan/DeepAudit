@@ -6,11 +6,17 @@ import { UploadFilled, ArrowLeft, Refresh, Check, MagicStick, Files, ChatRound }
 import TestingAssistantDialog from '@/components/TestingAssistantDialog.vue';
 import {
   emptyRecord,
+  emptyOtherDiagnosis,
   GENDER_OPTIONS,
   ICD_VER_OPTIONS,
   ADMISSION_ROUTE_OPTIONS,
   DISCHARGE_STATUS_OPTIONS,
   ANESTHESIA_OPTIONS,
+  ID_CARD_TYPE_OPTIONS,
+  MARITAL_STATUS_OPTIONS,
+  CONTACT_RELATION_OPTIONS,
+  ADMISSION_CONDITION_OPTIONS,
+  DISCHARGE_CONDITION_OPTIONS,
   BUSINESS_FIELDS,
   type MedicalRecord,
 } from '@/types/medicalRecord';
@@ -343,6 +349,19 @@ function gotoList() {
   router.push('/records');
 }
 
+// V7 — Other diagnoses CRUD on the form. Adds an empty row, removes by index;
+// seqNo is recomputed on remove so the saved sequence stays dense (1..N).
+function addOtherDiagnosis() {
+  if (!Array.isArray(form.diagnoses)) form.diagnoses = [];
+  form.diagnoses.push(emptyOtherDiagnosis(form.diagnoses.length + 1));
+  form.otherDiagnosisCount = form.diagnoses.length;
+}
+function removeOtherDiagnosis(idx: number) {
+  form.diagnoses.splice(idx, 1);
+  form.diagnoses.forEach((d, i) => (d.seqNo = i + 1));
+  form.otherDiagnosisCount = form.diagnoses.length;
+}
+
 function reset() {
   if (recordId.value != null) {
     void loadRecord(recordId.value);
@@ -464,7 +483,7 @@ watch(
         </div>
         <template #tip>
           <p class="upload-tip">
-            单个 PDF · ≤ 10 MB · 调用 Gemini 2.5 Flash 多模态自动抽取 30 字段
+            单个 PDF · ≤ 10 MB · 调用 DeepSeek V3 自动抽取 57 个 HQMS 国标字段
           </p>
         </template>
       </el-upload>
@@ -546,13 +565,176 @@ watch(
             />
           </el-form-item>
         </el-col>
+        <el-col :span="3">
+          <el-form-item label="证件类型">
+            <el-select v-model="form.idCardType" clearable>
+              <el-option
+                v-for="o in ID_CARD_TYPE_OPTIONS"
+                :key="o.value"
+                :label="o.label"
+                :value="o.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
         <el-col :span="6">
-          <el-form-item label="身份证（脱敏）">
+          <el-form-item label="证件号（脱敏）">
             <el-input
               v-model="form.idCardMasked"
               placeholder="如 110101********0011"
               clearable
             />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="不足1岁(天)">
+            <el-input-number
+              v-model="form.ageDays"
+              :min="0"
+              :max="364"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="国籍">
+            <el-input v-model="form.nationality" placeholder="如 中国" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="民族">
+            <el-input v-model="form.ethnicity" placeholder="如 汉族" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="婚姻">
+            <el-select v-model="form.maritalStatus" clearable>
+              <el-option
+                v-for="o in MARITAL_STATUS_OPTIONS"
+                :key="o.value"
+                :label="o.label"
+                :value="o.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="职业">
+            <el-input v-model="form.occupation" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="出生地">
+            <el-input v-model="form.birthPlace" placeholder="省市县" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="籍贯">
+            <el-input v-model="form.nativePlace" placeholder="省市" clearable />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-divider content-position="left">新生儿信息（age=0 时填写）</el-divider>
+      <el-row :gutter="16">
+        <el-col :span="6">
+          <el-form-item label="出生体重 (g)">
+            <el-input-number
+              v-model="form.newbornBirthWeight"
+              :min="0"
+              :max="10000"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="入院体重 (g)">
+            <el-input-number
+              v-model="form.newbornAdmissionWeight"
+              :min="0"
+              :max="10000"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-divider content-position="left">联系信息</el-divider>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="现住地址">
+            <el-input v-model="form.currentAddress" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="现住电话">
+            <el-input v-model="form.currentPhone" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="邮编">
+            <el-input v-model="form.currentZip" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3" />
+
+        <el-col :span="18">
+          <el-form-item label="户口住址">
+            <el-input v-model="form.registeredAddress" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="邮编">
+            <el-input v-model="form.registeredZip" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3" />
+
+        <el-col :span="12">
+          <el-form-item label="工作单位及地址">
+            <el-input v-model="form.workplace" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="单位电话">
+            <el-input v-model="form.workPhone" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="邮编">
+            <el-input v-model="form.workZip" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3" />
+
+        <el-col :span="6">
+          <el-form-item label="联系人姓名">
+            <el-input v-model="form.contactName" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="3">
+          <el-form-item label="关系">
+            <el-select v-model="form.contactRelation" clearable>
+              <el-option
+                v-for="o in CONTACT_RELATION_OPTIONS"
+                :key="o.value"
+                :label="o.label"
+                :value="o.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="9">
+          <el-form-item label="联系人地址">
+            <el-input v-model="form.contactAddress" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="联系人电话">
+            <el-input v-model="form.contactPhone" clearable />
           </el-form-item>
         </el-col>
       </el-row>
@@ -625,6 +807,40 @@ watch(
             </el-select>
           </el-form-item>
         </el-col>
+
+        <el-col :span="6">
+          <el-form-item label="入院病房">
+            <el-input v-model="form.admissionWard" placeholder="如 心内一病区" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="出院病房">
+            <el-input v-model="form.dischargeWard" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="专科科别">
+            <el-input v-model="form.specialtyDept" clearable />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-divider content-position="left">门(急)诊诊断</el-divider>
+      <el-row :gutter="16">
+        <el-col :span="14">
+          <el-form-item label="诊断名称">
+            <el-input v-model="form.outpatientDiagnosis" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="6">
+          <el-form-item label="疾病编号">
+            <el-input
+              v-model="form.outpatientDiagnosisCode"
+              placeholder="ICD-10"
+              clearable
+            />
+          </el-form-item>
+        </el-col>
       </el-row>
 
       <el-divider content-position="left">主要诊断</el-divider>
@@ -660,21 +876,113 @@ watch(
           </el-form-item>
         </el-col>
         <el-col :span="4">
-          <el-form-item label="其他诊断数">
-            <el-input-number
-              v-model="form.otherDiagnosisCount"
-              :min="0"
-              :controls="false"
-              style="width: 100%"
-            />
+          <el-form-item label="入院病况">
+            <el-select v-model="form.mainAdmissionCondition" clearable>
+              <el-option
+                v-for="o in ADMISSION_CONDITION_OPTIONS"
+                :key="o.value"
+                :label="o.label"
+                :value="o.value"
+              />
+            </el-select>
           </el-form-item>
         </el-col>
-        <el-col :span="14">
+
+        <el-col :span="4">
+          <el-form-item label="出院情况">
+            <el-select v-model="form.mainDischargeCondition" clearable>
+              <el-option
+                v-for="o in DISCHARGE_CONDITION_OPTIONS"
+                :key="o.value"
+                :label="o.label"
+                :value="o.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="10">
+          <el-form-item label="主诊备注">
+            <el-input v-model="form.mainNote" clearable />
+          </el-form-item>
+        </el-col>
+        <el-col :span="10">
           <el-form-item label="病理诊断">
             <el-input v-model="form.pathologicalDiagnosis" clearable />
           </el-form-item>
         </el-col>
       </el-row>
+
+      <el-divider content-position="left">
+        其他诊断
+        <span class="diag-count">（{{ form.diagnoses?.length ?? 0 }} 条）</span>
+      </el-divider>
+      <el-table :data="form.diagnoses" size="small" border stripe class="diag-table">
+        <el-table-column label="#" width="50" align="center">
+          <template #default="{ $index }">{{ $index + 1 }}</template>
+        </el-table-column>
+        <el-table-column label="诊断名称" min-width="180">
+          <template #default="{ row }">
+            <el-input v-model="row.diagnosisName" placeholder="如 高血压" />
+          </template>
+        </el-table-column>
+        <el-table-column label="疾病编码" width="140">
+          <template #default="{ row }">
+            <el-input v-model="row.diagnosisCode" placeholder="ICD-10" />
+          </template>
+        </el-table-column>
+        <el-table-column label="ICD" width="120">
+          <template #default="{ row }">
+            <el-select v-model="row.icdVersion" clearable size="small">
+              <el-option
+                v-for="o in ICD_VER_OPTIONS"
+                :key="o.value"
+                :label="o.label"
+                :value="o.value"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="入院病况" width="130">
+          <template #default="{ row }">
+            <el-select v-model="row.admissionCondition" clearable size="small">
+              <el-option
+                v-for="o in ADMISSION_CONDITION_OPTIONS"
+                :key="o.value"
+                :label="o.label"
+                :value="o.value"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="出院情况" width="120">
+          <template #default="{ row }">
+            <el-select v-model="row.dischargeCondition" clearable size="small">
+              <el-option
+                v-for="o in DISCHARGE_CONDITION_OPTIONS"
+                :key="o.value"
+                :label="o.label"
+                :value="o.value"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="备注" min-width="150">
+          <template #default="{ row }">
+            <el-input v-model="row.note" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="64" align="center">
+          <template #default="{ $index }">
+            <el-button
+              link type="danger" size="small"
+              @click="removeOtherDiagnosis($index)"
+            >删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="diag-actions">
+        <el-button size="small" @click="addOtherDiagnosis">+ 新增其他诊断</el-button>
+      </div>
 
       <el-divider content-position="left">主要手术</el-divider>
       <el-row :gutter="16">
@@ -991,6 +1299,18 @@ watch(
   border: 1px solid #eee;
   border-radius: 8px;
   padding: 0.5rem 1.5rem 1.5rem;
+}
+.diag-count {
+  color: #888;
+  font-weight: 400;
+  font-size: 0.82rem;
+  margin-left: 6px;
+}
+.diag-table {
+  margin-bottom: 8px;
+}
+.diag-actions {
+  margin-bottom: 16px;
 }
 .record-form :deep(.el-divider--horizontal) {
   margin: 22px 0 14px;

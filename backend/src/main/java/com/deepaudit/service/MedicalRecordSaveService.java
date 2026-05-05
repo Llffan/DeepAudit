@@ -1,11 +1,14 @@
 package com.deepaudit.service;
 
+import com.deepaudit.api.dto.DiagnosisDto;
 import com.deepaudit.api.dto.MedicalRecordSaveRequest;
 import com.deepaudit.api.exception.ConflictException;
 import com.deepaudit.api.exception.NotFoundException;
 import com.deepaudit.api.exception.ValidationException;
+import com.deepaudit.persistence.entity.MedicalRecordDiagnosis;
 import com.deepaudit.persistence.entity.MedicalRecordExtra;
 import com.deepaudit.persistence.entity.MedicalRecordMain;
+import com.deepaudit.persistence.repository.MedicalRecordDiagnosisRepository;
 import com.deepaudit.persistence.repository.MedicalRecordExtraRepository;
 import com.deepaudit.persistence.repository.MedicalRecordMainRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -40,11 +43,14 @@ public class MedicalRecordSaveService {
 
     private final MedicalRecordMainRepository mainRepo;
     private final MedicalRecordExtraRepository extraRepo;
+    private final MedicalRecordDiagnosisRepository diagRepo;
 
     public MedicalRecordSaveService(MedicalRecordMainRepository mainRepo,
-                                    MedicalRecordExtraRepository extraRepo) {
+                                    MedicalRecordExtraRepository extraRepo,
+                                    MedicalRecordDiagnosisRepository diagRepo) {
         this.mainRepo = mainRepo;
         this.extraRepo = extraRepo;
+        this.diagRepo = diagRepo;
     }
 
     @Transactional
@@ -71,10 +77,87 @@ public class MedicalRecordSaveService {
         }
 
         upsertExtra(main.getId(), req.extra(), isNew);
+        syncDiagnoses(main, req.diagnoses(), isNew);
 
         log.info("{} medical_record_main id={} status={}",
             isNew ? "Inserted" : "Updated", main.getId(), main.getStatus());
         return main;
+    }
+
+    /**
+     * Replaces the diagnosis sub-rows for {@code main}. The main row itself is
+     * always (re)written from {@code main.mainDiagnosis*} flat columns; the
+     * incoming {@code diagnosesIn} list provides the {@code 'other'} rows.
+     *
+     * <p>Strategy is delete-then-insert: for ~tens of rows the cost is trivial
+     * and avoids the diff/upsert machinery. Wrapped in the outer @Transactional
+     * so a partial failure rolls back together with the main upsert.
+     *
+     * <p>{@code diagnosesIn == null} on update means "leave the subtable
+     * untouched". On insert (isNew=true) we still write the main subtable row
+     * if the main_diagnosis_* fields are populated.
+     */
+    private void syncDiagnoses(MedicalRecordMain main, List<DiagnosisDto> diagnosesIn, boolean isNew) {
+        boolean explicitOthers = diagnosesIn != null;
+
+        // For an update with no incoming list and no main code change, leave
+        // the existing rows alone. The main row is rewritten regardless of
+        // flag because the user might have edited main_diagnosis_* fields.
+        diagRepo.deleteByRecordId(main.getId());
+
+        List<MedicalRecordDiagnosis> rows = new ArrayList<>();
+
+        // Mirror main_diagnosis_* into a synthetic 'main' row when the main
+        // diagnosis name/code is populated. Skipped when only the code/name
+        // is null (not a useful subtable row).
+        if (main.getMainDiagnosisName() != null && !main.getMainDiagnosisName().isBlank()) {
+            MedicalRecordDiagnosis m = new MedicalRecordDiagnosis();
+            m.setRecordId(main.getId());
+            m.setDiagType("main");
+            m.setSeqNo(1);
+            m.setDiagnosisName(main.getMainDiagnosisName());
+            m.setDiagnosisCode(main.getMainDiagnosisCode());
+            m.setIcdVersion(main.getMainDiagnosisIcdVer());
+            m.setAdmissionCondition(main.getMainAdmissionCondition());
+            m.setDischargeCondition(main.getMainDischargeCondition());
+            m.setNote(main.getMainNote());
+            rows.add(m);
+        }
+
+        // Other diagnoses come from the request. Filter out rows that the
+        // frontend mistakenly marked as 'main' (those belong to the flattened
+        // main fields above) — silently dropped to keep the contract simple.
+        if (explicitOthers) {
+            int seq = 1;
+            for (DiagnosisDto d : diagnosesIn) {
+                if (d == null) continue;
+                if ("main".equals(d.diagType())) continue; // Authority is main.* columns.
+                if (d.diagnosisName() == null || d.diagnosisName().isBlank()) continue;
+
+                MedicalRecordDiagnosis o = new MedicalRecordDiagnosis();
+                o.setRecordId(main.getId());
+                o.setDiagType("other");
+                o.setSeqNo(d.seqNo() != null ? d.seqNo() : seq);
+                o.setDiagnosisName(d.diagnosisName());
+                o.setDiagnosisCode(d.diagnosisCode());
+                o.setIcdVersion(d.icdVersion());
+                o.setAdmissionCondition(d.admissionCondition());
+                o.setDischargeCondition(d.dischargeCondition());
+                o.setNote(d.note());
+                rows.add(o);
+                seq++;
+            }
+        }
+
+        if (!rows.isEmpty()) {
+            diagRepo.saveAll(rows);
+        }
+
+        // Refresh the cached count column so existing rules referencing
+        // otherDiagnosisCount stay accurate.
+        long otherCount = diagRepo.countByRecordIdAndDiagType(main.getId(), "other");
+        main.setOtherDiagnosisCount((int) otherCount);
+        mainRepo.save(main);
     }
 
     private void upsertExtra(Long recordId, JsonNode extra, boolean isNewMain) {
@@ -121,6 +204,32 @@ public class MedicalRecordSaveService {
         m.setAge(r.age());
         m.setIdCardMasked(r.idCardMasked());
 
+        // V6 demographics
+        m.setNationality(r.nationality());
+        m.setEthnicity(r.ethnicity());
+        m.setMaritalStatus(r.maritalStatus());
+        m.setOccupation(r.occupation());
+        m.setAgeDays(r.ageDays());
+        m.setNewbornBirthWeight(r.newbornBirthWeight());
+        m.setNewbornAdmissionWeight(r.newbornAdmissionWeight());
+        m.setIdCardType(r.idCardType());
+        m.setBirthPlace(r.birthPlace());
+        m.setNativePlace(r.nativePlace());
+
+        // V6 contacts
+        m.setCurrentAddress(r.currentAddress());
+        m.setCurrentPhone(r.currentPhone());
+        m.setCurrentZip(r.currentZip());
+        m.setRegisteredAddress(r.registeredAddress());
+        m.setRegisteredZip(r.registeredZip());
+        m.setWorkplace(r.workplace());
+        m.setWorkPhone(r.workPhone());
+        m.setWorkZip(r.workZip());
+        m.setContactName(r.contactName());
+        m.setContactRelation(r.contactRelation());
+        m.setContactAddress(r.contactAddress());
+        m.setContactPhone(r.contactPhone());
+
         m.setAdmissionDate(r.admissionDate());
         m.setDischargeDate(r.dischargeDate());
         m.setLengthOfStay(r.lengthOfStay());
@@ -129,9 +238,21 @@ public class MedicalRecordSaveService {
         m.setAdmissionRoute(r.admissionRoute());
         m.setDischargeStatus(r.dischargeStatus());
 
+        // V6 ward / specialty
+        m.setAdmissionWard(r.admissionWard());
+        m.setDischargeWard(r.dischargeWard());
+        m.setSpecialtyDept(r.specialtyDept());
+
+        // V6 outpatient diagnosis
+        m.setOutpatientDiagnosis(r.outpatientDiagnosis());
+        m.setOutpatientDiagnosisCode(r.outpatientDiagnosisCode());
+
         m.setMainDiagnosisCode(r.mainDiagnosisCode());
         m.setMainDiagnosisName(r.mainDiagnosisName());
         m.setMainDiagnosisIcdVer(r.mainDiagnosisIcdVer());
+        m.setMainAdmissionCondition(r.mainAdmissionCondition());
+        m.setMainDischargeCondition(r.mainDischargeCondition());
+        m.setMainNote(r.mainNote());
         m.setOtherDiagnosisCount(r.otherDiagnosisCount());
         m.setPathologicalDiagnosis(r.pathologicalDiagnosis());
 

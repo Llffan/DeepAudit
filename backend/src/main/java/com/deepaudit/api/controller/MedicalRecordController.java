@@ -1,13 +1,16 @@
 package com.deepaudit.api.controller;
 
 import com.deepaudit.api.dto.CheckSummaryResponse;
+import com.deepaudit.api.dto.DiagnosisDto;
 import com.deepaudit.api.dto.MedicalRecordImportResponse;
 import com.deepaudit.api.dto.MedicalRecordListItemDto;
 import com.deepaudit.api.dto.MedicalRecordMainDto;
 import com.deepaudit.api.dto.MedicalRecordSaveRequest;
 import com.deepaudit.api.dto.PageResponse;
 import com.deepaudit.api.exception.NotFoundException;
+import com.deepaudit.persistence.entity.MedicalRecordDiagnosis;
 import com.deepaudit.persistence.entity.MedicalRecordMain;
+import com.deepaudit.persistence.repository.MedicalRecordDiagnosisRepository;
 import com.deepaudit.persistence.repository.MedicalRecordMainRepository;
 import com.deepaudit.service.CheckService;
 import com.deepaudit.service.ExtractionResult;
@@ -58,6 +61,7 @@ public class MedicalRecordController {
     private final MedicalRecordSaveService saveService;
     private final MedicalRecordMockFiller mockFiller;
     private final MedicalRecordMainRepository mainRepo;
+    private final MedicalRecordDiagnosisRepository diagRepo;
     private final FileStorageService storage;
     private final CheckService checkService;
 
@@ -65,12 +69,14 @@ public class MedicalRecordController {
                                    MedicalRecordSaveService saveService,
                                    MedicalRecordMockFiller mockFiller,
                                    MedicalRecordMainRepository mainRepo,
+                                   MedicalRecordDiagnosisRepository diagRepo,
                                    FileStorageService storage,
                                    CheckService checkService) {
         this.importService = importService;
         this.saveService = saveService;
         this.mockFiller = mockFiller;
         this.mainRepo = mainRepo;
+        this.diagRepo = diagRepo;
         this.storage = storage;
         this.checkService = checkService;
     }
@@ -140,7 +146,7 @@ public class MedicalRecordController {
     @GetMapping("/{id}")
     public MedicalRecordMainDto get(@PathVariable Long id) {
         return mainRepo.findById(id)
-            .map(MedicalRecordController::toDto)
+            .map(this::toDto)
             .orElseThrow(() -> new NotFoundException("病案不存在：id=" + id));
     }
 
@@ -181,15 +187,49 @@ public class MedicalRecordController {
         );
     }
 
-    private static MedicalRecordMainDto toDto(MedicalRecordMain m) {
+    private MedicalRecordMainDto toDto(MedicalRecordMain m) {
+        var diagnoses = diagRepo.findByRecordIdOrderByDiagTypeAscSeqNoAsc(m.getId())
+            .stream()
+            .map(MedicalRecordController::toDiagnosisDto)
+            .toList();
         return new MedicalRecordMainDto(
             m.getId(),
             m.getRecordNo(),
+
+            // Identity (6)
             m.getName(),
             m.getGender(),
             m.getBirthDate(),
             m.getAge(),
             m.getIdCardMasked(),
+
+            // V6 demographics (10)
+            m.getNationality(),
+            m.getEthnicity(),
+            m.getMaritalStatus(),
+            m.getOccupation(),
+            m.getAgeDays(),
+            m.getNewbornBirthWeight(),
+            m.getNewbornAdmissionWeight(),
+            m.getIdCardType(),
+            m.getBirthPlace(),
+            m.getNativePlace(),
+
+            // V6 contacts (12)
+            m.getCurrentAddress(),
+            m.getCurrentPhone(),
+            m.getCurrentZip(),
+            m.getRegisteredAddress(),
+            m.getRegisteredZip(),
+            m.getWorkplace(),
+            m.getWorkPhone(),
+            m.getWorkZip(),
+            m.getContactName(),
+            m.getContactRelation(),
+            m.getContactAddress(),
+            m.getContactPhone(),
+
+            // Admission / discharge (7)
             m.getAdmissionDate(),
             m.getDischargeDate(),
             m.getLengthOfStay(),
@@ -197,26 +237,63 @@ public class MedicalRecordController {
             m.getDischargeDept(),
             m.getAdmissionRoute(),
             m.getDischargeStatus(),
+
+            // V6 ward / specialty (3)
+            m.getAdmissionWard(),
+            m.getDischargeWard(),
+            m.getSpecialtyDept(),
+
+            // V6 outpatient diagnosis (2)
+            m.getOutpatientDiagnosis(),
+            m.getOutpatientDiagnosisCode(),
+
+            // Diagnoses — main flattened (8)
             m.getMainDiagnosisCode(),
             m.getMainDiagnosisName(),
             m.getMainDiagnosisIcdVer(),
+            m.getMainAdmissionCondition(),
+            m.getMainDischargeCondition(),
+            m.getMainNote(),
             m.getOtherDiagnosisCount(),
             m.getPathologicalDiagnosis(),
+
+            // Operations (5)
             m.getMainOperationCode(),
             m.getMainOperationName(),
             m.getOperationDate(),
             m.getOperator(),
             m.getAnesthesiaMethod(),
+
+            // Cost (4)
             m.getTotalCost(),
             m.getDrugCost(),
             m.getOperationCost(),
             m.getMedicalServiceCost(),
+
+            // Source / extraction (3)
             m.getSourceHospital(),
             m.getSourcePdfPath(),
             m.getExtractionConfidence(),
+
+            // V7 — full diagnoses subtable (含主诊在内)
+            diagnoses,
+
             m.getStatus(),
             m.getCreatedAt(),
             m.getUpdatedAt()
+        );
+    }
+
+    private static DiagnosisDto toDiagnosisDto(MedicalRecordDiagnosis d) {
+        return new DiagnosisDto(
+            d.getDiagType(),
+            d.getSeqNo(),
+            d.getDiagnosisName(),
+            d.getDiagnosisCode(),
+            d.getIcdVersion(),
+            d.getAdmissionCondition(),
+            d.getDischargeCondition(),
+            d.getNote()
         );
     }
 }
