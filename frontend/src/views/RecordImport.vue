@@ -432,7 +432,9 @@ function escapeHtml(s: unknown): string {
 type GridCell = [label: string, value: unknown, span: number];
 function gridRow(...cells: GridCell[]): string {
   const html = cells.map(([l, v, span]) => {
-    const labelCols = Math.min(span - 1, Math.max(2, Math.ceil(l.length * 0.5)));
+    // 系数 0.4：让长字段名（"工作单位及地址"/"(不足1岁的)年龄(天)" 等）
+    // 比之前少占 1 col，把宽度让给输入值，缓解大量字段被省略号截断的问题。
+    const labelCols = Math.min(span - 1, Math.max(2, Math.ceil(l.length * 0.4)));
     const valueCols = span - labelCols;
     return `<th colspan="${labelCols}">${l}</th><td colspan="${valueCols}">${escapeHtml(v)}</td>`;
   }).join('');
@@ -522,12 +524,12 @@ function buildPrintHtml(r: MedicalRecord): string {
 <meta charset="UTF-8">
 <title>住院病案首页 ${escapeHtml(r.recordNo)}</title>
 <style>
-  body { font-family: 'SimSun', '宋体', serif; color: #000; padding: 20px; font-size: 12px; line-height: 1.4; }
+  body { font-family: 'SimSun', '宋体', serif; color: #000; padding: 12px; font-size: 12px; line-height: 1.4; }
   h1 { font-size: 18px; text-align: center; margin: 0 0 16px; letter-spacing: 4px; }
   /* 区块标题已按需求移除，所有 <table> 上下直接拼接，靠 1px 黑线区分 */
   table { width: 100%; border-collapse: collapse; margin-bottom: 0; border-top: none; table-layout: auto; }
   table + table { margin-top: -1px; }      /* 相邻 table 共享一条黑线，视觉上形成连续表格 */
-  th, td { border: 1px solid #000; padding: 4px 8px; vertical-align: middle; height: 22px; }
+  th, td { border: 1px solid #000; padding: 3px 5px; vertical-align: middle; height: 22px; }
   th { font-weight: 600; background: #fff; text-align: left; }
   thead th { text-align: center; }
 
@@ -540,10 +542,10 @@ function buildPrintHtml(r: MedicalRecord): string {
     text-overflow: ellipsis;
   }
   table.grid th {
-    padding: 4px 6px;
+    padding: 3px 4px;
   }
   table.grid td {
-    padding: 4px 8px;
+    padding: 3px 5px;
   }
 
   /* 诊断网格：4 列按内容长短分配（出院诊断 40% / 疾病编码 20% / 入院病情 20% / 出院情况 20%） */
