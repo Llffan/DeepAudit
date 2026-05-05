@@ -7,12 +7,12 @@ const route = useRoute();
 const activeIndex = computed(() => route.path);
 
 const navItems = [
-  { index: '/rules',     icon: Document,   label: '规则配置' },
-  { index: '/operators', icon: Cpu,        label: '算子库' },
-  { index: '/sandbox',   icon: MagicStick, label: '规则沙盒' },
   { index: '/import',    icon: Upload,     label: '病案导入' },
   { index: '/records',   icon: Files,      label: '病案列表' },
   { index: '/results',   icon: DataLine,   label: '检查结果' },
+  { index: '/rules',     icon: Document,   label: '规则配置' },
+  { index: '/operators', icon: Cpu,        label: '算子库' },
+  { index: '/sandbox',   icon: MagicStick, label: '规则沙盒' },
 ];
 </script>
 
