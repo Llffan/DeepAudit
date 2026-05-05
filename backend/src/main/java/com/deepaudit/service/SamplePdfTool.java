@@ -73,7 +73,7 @@ public class SamplePdfTool {
         int seed
     ) {
         if (!trap.isBlank() && !AVAILABLE_TRAPS.contains(trap)) {
-            return "错误：未知陷阱 "" + trap + ""，可用值：" + AVAILABLE_TRAPS;
+            return "错误：未知陷阱 " + trap + "，可用值：" + AVAILABLE_TRAPS;
         }
 
         List<String> cmd = new ArrayList<>(List.of(
