@@ -1,5 +1,10 @@
 package com.deepaudit.service;
 
+import com.deepaudit.api.exception.NotFoundException;
+import com.deepaudit.persistence.entity.MedicalRecordMain;
+import com.deepaudit.persistence.repository.MedicalRecordMainRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.slf4j.Logger;
@@ -13,7 +18,9 @@ import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -37,18 +44,21 @@ public class SamplePdfTool {
         "R001", "R002", "gender_obstetric", "cost_sum", "age_birth_weight", "main_dx_pathology"
     );
 
-    /** scripts/ 目录，包含 sample_pdf Python 包。 */
     private final Path scriptsDir;
-
-    /** 生成的 PDF / GT JSON 的输出目录（绝对路径）。 */
     private final Path outputDir;
+    private final MedicalRecordMainRepository recordRepository;
+    private final ObjectMapper objectMapper;
 
     public SamplePdfTool(
         @Value("${deepaudit.scripts-dir:../scripts}") String scriptsDirProp,
-        @Value("${deepaudit.sample-pdf.output-dir:../data/samples}") String outputDirProp
+        @Value("${deepaudit.sample-pdf.output-dir:../data/samples}") String outputDirProp,
+        MedicalRecordMainRepository recordRepository,
+        ObjectMapper objectMapper
     ) {
         this.scriptsDir = Paths.get(scriptsDirProp).toAbsolutePath().normalize();
         this.outputDir  = Paths.get(outputDirProp).toAbsolutePath().normalize();
+        this.recordRepository = recordRepository;
+        this.objectMapper = objectMapper;
         log.info("SamplePdfTool scripts={} output={}", this.scriptsDir, this.outputDir);
     }
 
@@ -113,6 +123,64 @@ public class SamplePdfTool {
             cmd.addAll(List.of("--seed", String.valueOf(seed)));
         }
         return run(cmd);
+    }
+
+    @Tool("根据数据库中已有的病案首页记录导出 PDF，recordId 为病案主键")
+    public String exportRecordAsPdf(
+        @P("病案主键 ID（medical_record_main.id）")
+        long recordId
+    ) {
+        MedicalRecordMain r = recordRepository.findById(recordId)
+            .orElseThrow(() -> new NotFoundException("病案 #" + recordId + " 不存在"));
+
+        Map<String, String> fields = new LinkedHashMap<>();
+        put(fields, "BAH",        r.getRecordNo());
+        put(fields, "XM",         r.getName());
+        put(fields, "XB",         r.getGender());
+        put(fields, "NL",         r.getAge());
+        put(fields, "CSRQ",       r.getBirthDate());
+        put(fields, "SFZH",       r.getIdCardMasked());
+        put(fields, "RYSJ",       r.getAdmissionDate());
+        put(fields, "CYSJ",       r.getDischargeDate());
+        put(fields, "SJZY",       r.getLengthOfStay());
+        put(fields, "RYKB",       r.getAdmissionDept());
+        put(fields, "CYKB",       r.getDischargeDept());
+        put(fields, "RYTJ",       r.getAdmissionRoute());
+        put(fields, "LYFS",       r.getDischargeStatus());
+        put(fields, "ZYZD_JBBM", r.getMainDiagnosisCode());
+        put(fields, "ZYZD",       r.getMainDiagnosisName());
+        put(fields, "BLZD",       r.getPathologicalDiagnosis());
+        put(fields, "SSJCZBM1",   r.getMainOperationCode());
+        put(fields, "SSJCZMC1",   r.getMainOperationName());
+        put(fields, "SSJCZRQ1",   r.getOperationDate());
+        put(fields, "SZ1",        r.getOperator());
+        put(fields, "MZFS1",      r.getAnesthesiaMethod());
+        put(fields, "ZFY",        r.getTotalCost());
+        put(fields, "XYF",        r.getDrugCost());
+        put(fields, "SSF",        r.getOperationCost());
+        put(fields, "YLFWF",      r.getMedicalServiceCost());
+        put(fields, "JGMC",       r.getSourceHospital());
+
+        String fieldsJson;
+        try {
+            fieldsJson = objectMapper.writeValueAsString(fields);
+        } catch (JsonProcessingException e) {
+            return "序列化失败：" + e.getMessage();
+        }
+
+        List<String> cmd = new ArrayList<>(List.of(
+            "python", "-m", "sample_pdf.cli",
+            "--out-dir", outputDir.toString(),
+            "--prefix", "record_" + recordId,
+            "--fields-json", fieldsJson
+        ));
+        return run(cmd);
+    }
+
+    private static void put(Map<String, String> map, String key, Object value) {
+        if (value != null) {
+            map.put(key, value.toString());
+        }
     }
 
     // -------------------------------------------------------------------------
