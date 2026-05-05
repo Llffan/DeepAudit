@@ -1503,16 +1503,22 @@ watch(
 .record-form :deep(.el-form-item__label) {
   font-size: 0.85rem;
   color: #555;
-  padding-right: 10px;         /* label 与输入框固定 10px 间距 */
+  padding-right: 10px !important; /* label 与输入框固定 10px 间距 */
   line-height: 1.3;
-  white-space: nowrap;         /* 字段名不换行：长字段如"工作单位及地址"保持单行显示 */
-}
-/* 非首列：标签按自身内容收缩，并去掉右内边距让标签和输入框完全贴合；
-   首列保留 label-width="auto" 计算出的统一宽度以维持纵向对齐。 */
-.record-form :deep(.el-row > .el-col:not(:first-child) .el-form-item__label) {
-  width: auto !important;
+  white-space: nowrap;            /* 字段名不换行 */
+  width: auto !important;         /* 按自身内容收缩，不和别人对齐 */
   min-width: 0 !important;
-  padding-right: 0 !important;
+}
+/* 行内每列等宽：用 flex 覆盖 EP 24 栅格的固定 span，让一行里的
+   每个"标签 + 输入框"单元宽度相同。 */
+.record-form :deep(.el-row) {
+  display: flex;
+}
+.record-form :deep(.el-row > .el-col) {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0;                   /* 允许 flex item 收缩，避免内容撑爆 */
 }
 
 .actions {
