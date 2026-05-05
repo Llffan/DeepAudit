@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 测试助手对话接口。Gemini 通过 SamplePdfTool 的 @Tool 方法
  * 在服务端自主决定调用哪个 Python 生成器命令。
  *
- * POST /api/testing-assistant/chat
+ * POST /api/testing-assistant/chat  (context-path=/api + mapping=/testing-assistant)
  *   { "message": "帮我生成一个有 R001 手术信息缺失的测试病案" }
  *   →
  *   { "reply": "已生成 data/samples/case_R001_abc123.pdf ..." }
@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * LLM 不可用时（未配置 API Key）返回 503。
  */
 @RestController
-@RequestMapping("/api/testing-assistant")
+@RequestMapping("/testing-assistant")
 public class TestingAssistantController {
 
     private final ObjectProvider<TestingAssistantService> assistantProvider;
