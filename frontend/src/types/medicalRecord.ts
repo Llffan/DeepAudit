@@ -76,9 +76,11 @@ export interface MedicalRecord {
   dischargeWard: string | null;
   specialtyDept: string | null;
 
-  // V6 — Outpatient diagnosis (2)
+  // V6 — Outpatient diagnosis (2) + V8 extras (2)
   outpatientDiagnosis: string | null;
   outpatientDiagnosisCode: string | null;
+  outpatientAdmissionCondition: string | null;
+  confirmedAfterAdmissionDate: string | null;
 
   // Diagnoses — main flattened (8: V1 5 + V7 3)
   mainDiagnosisCode: string | null;
@@ -155,6 +157,8 @@ export function emptyRecord(): MedicalRecord {
     specialtyDept: null,
     outpatientDiagnosis: null,
     outpatientDiagnosisCode: null,
+    outpatientAdmissionCondition: null,
+    confirmedAfterAdmissionDate: null,
     mainDiagnosisCode: null,
     mainDiagnosisName: null,
     mainDiagnosisIcdVer: null,
@@ -275,6 +279,7 @@ export const BUSINESS_FIELDS: (keyof MedicalRecord)[] = [
   'admissionDept', 'dischargeDept', 'admissionRoute', 'dischargeStatus',
   'admissionWard', 'dischargeWard', 'specialtyDept',
   'outpatientDiagnosis', 'outpatientDiagnosisCode',
+  'outpatientAdmissionCondition', 'confirmedAfterAdmissionDate',
   'mainDiagnosisCode', 'mainDiagnosisName', 'mainDiagnosisIcdVer',
   'mainAdmissionCondition', 'mainDischargeCondition', 'mainNote',
   'otherDiagnosisCount', 'pathologicalDiagnosis',

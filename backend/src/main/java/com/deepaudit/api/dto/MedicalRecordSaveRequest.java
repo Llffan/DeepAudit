@@ -68,9 +68,11 @@ public record MedicalRecordSaveRequest(
     String dischargeWard,
     String specialtyDept,
 
-    // V6 — Outpatient diagnosis (2)
+    // V6 — Outpatient diagnosis (2) + V8 extras (2)
     String outpatientDiagnosis,
     String outpatientDiagnosisCode,
+    String outpatientAdmissionCondition,
+    LocalDate confirmedAfterAdmissionDate,
 
     // Diagnoses — main flattened (8: 5 V1 + 3 V7)
     String mainDiagnosisCode,
