@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { MagicStick, Select as SelectIcon } from '@element-plus/icons-vue';
+import { MagicStick } from '@element-plus/icons-vue';
 
 interface QcRuleDto {
   id: number;
@@ -292,7 +292,7 @@ async function generateDsl() {
       </el-form-item>
 
       <el-form-item label="维度" prop="dimension">
-        <el-select :prefix-icon="SelectIcon" v-model="form.dimension" style="width: 100%">
+        <el-select v-model="form.dimension" style="width: 100%">
           <el-option label="完整性 (completeness)" value="completeness" />
           <el-option label="逻辑性 (logic)" value="logic" />
           <el-option label="规范性 (standardization)" value="standardization" />
@@ -301,7 +301,7 @@ async function generateDsl() {
       </el-form-item>
 
       <el-form-item label="严重度" prop="severity">
-        <el-select :prefix-icon="SelectIcon" v-model="form.severity" style="width: 100%">
+        <el-select v-model="form.severity" style="width: 100%">
           <el-option label="强制 (mandatory)" value="mandatory" />
           <el-option label="扣分 (deduction)" value="deduction" />
           <el-option label="提示 (hint)" value="hint" />
