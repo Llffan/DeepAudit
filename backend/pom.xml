@@ -113,6 +113,22 @@
     </dependencies>
 
     <build>
+        <!-- ICD 字典 JSONL 单点维护在 docs/icd_dict/，构建时镜像到
+             classpath:data/icd_dict/，由 IcdDictLoader 从 classpath 加载。
+             这样数据不双份维护，且打包成 jar 后仍可读。 -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>${project.basedir}/../docs/icd_dict</directory>
+                <targetPath>data/icd_dict</targetPath>
+                <includes>
+                    <include>*.jsonl</include>
+                </includes>
+            </resource>
+        </resources>
+
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

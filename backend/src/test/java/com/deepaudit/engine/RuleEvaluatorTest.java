@@ -22,7 +22,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RuleEvaluatorTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private final RuleEvaluator evaluator = new RuleEvaluator();
+    // null repositories are safe: CustomOperatorRegistry.cache and
+    // IcdDictCache.keys both default to empty collections; this suite does
+    // not exercise the 'custom' or 'icdCodeExists' ops, so the registries
+    // are never asked to call back into the (null) repository.
+    private final RuleEvaluator evaluator = new RuleEvaluator(
+        new CustomOperatorRegistry(null),
+        new IcdDictCache(null));
 
     /** R001 -- 主手术编码非空时，手术医生与手术日期不能为空（V1 seed）. */
     private static final String R001 = """

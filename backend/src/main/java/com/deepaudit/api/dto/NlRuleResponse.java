@@ -40,9 +40,12 @@ public record NlRuleResponse(
     String severity,
     String errorMessageTemplate,
     List<String> validationErrors,
-    String rawOutput
+    String rawOutput,
+    /** Codes of operator templates auto-created as a side-effect of this generation. */
+    List<String> createdOperatorCodes
 ) {
     public NlRuleResponse {
-        validationErrors = validationErrors == null ? List.of() : List.copyOf(validationErrors);
+        validationErrors     = validationErrors     == null ? List.of() : List.copyOf(validationErrors);
+        createdOperatorCodes = createdOperatorCodes == null ? List.of() : List.copyOf(createdOperatorCodes);
     }
 }

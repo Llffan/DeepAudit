@@ -218,6 +218,12 @@ async function generateDsl() {
       const filledHint = filled.length > 0
         ? `（已回写：${filled.join('、')}）`
         : '';
+      if (body.createdOperatorCodes && body.createdOperatorCodes.length > 0) {
+        ElMessage.success(
+          `已自动创建算子模板：${(body.createdOperatorCodes as string[]).join('、')}`,
+          { duration: 5000 }
+        );
+      }
       if (body.validationErrors && body.validationErrors.length > 0) {
         dslErrors.value = body.validationErrors;
         aiHint.value =

@@ -42,8 +42,11 @@ const routes: RouteRecordRaw[] = [
         name: 'check-results',
         component: () => import('@/views/CheckResult.vue'),
       },
-      // Phase 3 will register: { path: 'records/:id/confirm', ... }
-      // Phase 4 will register: { path: 'records/:id/results', ... }
+      {
+        path: 'operators',
+        name: 'operator-library',
+        component: () => import('@/views/OperatorLibrary.vue'),
+      },
     ],
   },
 ];

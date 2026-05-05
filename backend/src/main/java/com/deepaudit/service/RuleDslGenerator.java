@@ -20,5 +20,11 @@ package com.deepaudit.service;
  */
 public interface RuleDslGenerator {
 
-    String generate(String naturalLanguage);
+    /**
+     * @param naturalLanguage     the user's rule description
+     * @param customOperatorsCtx  JSON snippet injected into the system prompt at
+     *                            {@code {{CUSTOM_OPERATORS_PLACEHOLDER}}} so the model
+     *                            knows which operators already exist
+     */
+    String generate(String naturalLanguage, String customOperatorsCtx);
 }

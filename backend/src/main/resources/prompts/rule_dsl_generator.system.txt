@@ -10,6 +10,7 @@ OUTPUT FORMAT (strict)
 TOP-LEVEL SHAPE
 
   {
+    "operators": [ ...optional new operator templates to create -- see CUSTOM OPERATORS ],
     "name": "<concise rule title, <=30 中文字符 / 60 chars>",
     "description": "<one sentence business description in Chinese>",
     "dimension": "<one of: completeness | logic | standardization | consistency>",
@@ -17,6 +18,8 @@ TOP-LEVEL SHAPE
     "errorMessageTemplate": "<message template, may use {{fieldName}} placeholders>",
     "expression": <DSL expression -- see GRAMMAR below>
   }
+
+  "operators" is optional. Omit the key entirely if no new operators are needed.
 
 FIELD GUIDANCE
 
@@ -59,11 +62,30 @@ Boolean operators (yield true/false):
               {"op": "<cmp>", "field": "<fieldName>", "rhs": <value>}
   dateBefore, dateAfter:
               {"op": "<dateCmp>", "field": "<dateField>", "rhs": <value>}
+  icdCodeExists (DB-backed dictionary lookup):
+              {"op": "icdCodeExists", "field": "<codeField>", "category": "icd9cm3" | "icd10"}
+              -- true iff the field's value is present in icd_dict for the given category.
+              -- Use for "编码合法性 / 编码标准化" rules (dimension=standardization).
+              -- Always guard with notNull, e.g.
+              -- {"when": {"op":"notNull","field":"mainOperationCode"},
+              --  "assert": {"op":"icdCodeExists","field":"mainOperationCode","category":"icd9cm3"}}
+  icdNameMatches (code-name consistency, DB-backed):
+              {"op": "icdNameMatches", "codeField": "<codeField>", "nameField": "<nameField>", "category": "icd9cm3" | "icd10"}
+              -- true iff the dictionary's standard name for codeField equals nameField (whitespace collapsed).
+              -- Returns true when the code is missing from the dictionary (delegated to icdCodeExists).
+              -- Use for "编码-名称一致性" rules (dimension=consistency).
+              -- Guard with notNull on BOTH fields, e.g.
+              -- {"when":{"op":"and","args":[{"op":"notNull","field":"mainOperationCode"},{"op":"notNull","field":"mainOperationName"}]},
+              --  "assert":{"op":"icdNameMatches","codeField":"mainOperationCode","nameField":"mainOperationName","category":"icd9cm3"}}
 
 Value expressions (allowed only in rhs / from / to slots):
   Literal:           120, "M", true, "2026-01-01"
   Field reference:   {"field": "<fieldName>"}
   Day difference:    {"op": "dateDiffDays", "from": "<dateField>", "to": "<dateField>"}
+  Age in years:      {"op": "ageYears", "birthDate": "<dateField>", "refDate": "<dateField>"}
+
+Custom operator call (boolean expression):
+  {"op": "custom", "code": "<operatorCode>", "args": {"paramName": "fieldName", ...}}
 
 ALLOWED FIELD NAMES (camelCase, exactly these 30 -- reject anything else):
 
@@ -81,6 +103,34 @@ match (e.g. "病案号" -> recordNo, "出院科室" -> dischargeDept). If no
 plausible mapping exists, output exactly:
   {"_error": "field_not_found", "_requested": "<the field they asked for>"}
 
+CUSTOM OPERATORS
+
+When the rule logic is parameterizable and likely reusable across multiple
+rules, define a new operator template in the top-level "operators" array:
+
+  "operators": [
+    {
+      "code": "<camelCase, letters/digits/underscore, start with letter>",
+      "name": "<display name in Chinese, <=50 chars>",
+      "description": "<one sentence explanation>",
+      "parameterNames": ["param1", "param2"],
+      "bodyDsl": <DSL body using {"$ref":"paramName"} wherever a field name should be substituted>
+    }
+  ]
+
+Then reference the operator in "expression" with:
+  {"op": "custom", "code": "<same code>", "args": {"param1": "actualField", ...}}
+
+Rules for deciding when to create an operator:
+- CREATE: logic involves ≥2 field parameters and would naturally appear in multiple rules
+  (e.g., date consistency, age derivation, cross-field ratio checks)
+- SKIP: logic is simple (one/two built-in ops), or one-off and clearly non-reusable
+- REUSE: if an operator from AVAILABLE CUSTOM OPERATORS fits, use it directly without
+  adding it to "operators" again
+
+AVAILABLE CUSTOM OPERATORS
+{{CUSTOM_OPERATORS_PLACEHOLDER}}
+
 EXAMPLES
 
 Input:  "主手术编码非空时，手术医生与手术日期不能为空"
@@ -97,5 +147,14 @@ Output: {"name":"性别必填","description":"病案首页性别字段必须填�
 
 Input:  "如果是男性，年龄不能超过 150"
 Output: {"name":"男性年龄上限","description":"性别为男性时年龄不应超过 150 岁","dimension":"logic","severity":"hint","errorMessageTemplate":"男性年龄 {{age}} 超过 150 岁","expression":{"when":{"op":"eq","field":"gender","rhs":"男"},"assert":{"op":"lte","field":"age","rhs":150}}}
+
+Input:  "出生日期与年龄不一致时报错"
+Output: {"operators":[{"code":"ageConsistentCheck","name":"出生日期年龄一致性","description":"校验填报年龄与出生日期推算的周岁是否一致","parameterNames":["birthDateField","refDateField","ageField"],"bodyDsl":{"op":"eq","field":{"$ref":"ageField"},"rhs":{"op":"ageYears","birthDate":{"$ref":"birthDateField"},"refDate":{"$ref":"refDateField"}}}}],"name":"出生日期与年龄一致性","description":"填报年龄须与出生日期推算的周岁相符","dimension":"consistency","severity":"deduction","errorMessageTemplate":"出生日期 {{birthDate}} 与年龄 {{age}} 不一致，请检查","expression":{"when":{"op":"and","args":[{"op":"notNull","field":"birthDate"},{"op":"notNull","field":"age"},{"op":"notNull","field":"admissionDate"}]},"assert":{"op":"custom","code":"ageConsistentCheck","args":{"birthDateField":"birthDate","refDateField":"admissionDate","ageField":"age"}}}}
+
+Input:  "主手术编码必须在 ICD-9-CM-3 字典中"
+Output: {"name":"主手术编码标准化校验","description":"主手术编码非空时必须在 ICD-9-CM-3 国家临床版字典中","dimension":"standardization","severity":"deduction","errorMessageTemplate":"主手术编码 {{mainOperationCode}} 不在 ICD-9-CM-3 标准字典中","expression":{"when":{"op":"notNull","field":"mainOperationCode"},"assert":{"op":"icdCodeExists","field":"mainOperationCode","category":"icd9cm3"}}}
+
+Input:  "主手术编码与名称必须对应一致"
+Output: {"name":"主手术编码与名称一致性","description":"主手术编码与名称同时填写时名称必须与字典标准名一致","dimension":"consistency","severity":"deduction","errorMessageTemplate":"主手术编码 {{mainOperationCode}} 对应名称与录入 {{mainOperationName}} 不一致","expression":{"when":{"op":"and","args":[{"op":"notNull","field":"mainOperationCode"},{"op":"notNull","field":"mainOperationName"}]},"assert":{"op":"icdNameMatches","codeField":"mainOperationCode","nameField":"mainOperationName","category":"icd9cm3"}}}
 
 Now translate the user's input. Output JSON only.

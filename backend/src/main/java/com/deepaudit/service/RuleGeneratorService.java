@@ -2,10 +2,14 @@ package com.deepaudit.service;
 
 import com.deepaudit.api.dto.NlRuleResponse;
 import com.deepaudit.api.exception.ServiceUnavailableException;
+import com.deepaudit.engine.CustomOperatorRegistry;
 import com.deepaudit.engine.RuleDslValidator;
 import com.deepaudit.engine.RuleDslValidator.ValidationResult;
+import com.deepaudit.persistence.entity.QcOperatorTemplate;
+import com.deepaudit.persistence.repository.QcOperatorTemplateRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -20,9 +24,10 @@ import java.util.Set;
  * plan §8.3):
  *
  * <pre>
- *   user input -> RuleDslGenerator (langchain4j AiService over Gemini)
+ *   user input -> RuleDslGenerator (langchain4j AiService over DeepSeek)
  *              -> strip accidental ```...``` fences
  *              -> Jackson parse to JsonNode
+ *              -> optionally persist any new operator templates from "operators[]"
  *              -> extract wrapper (expression + metadata) OR fall back
  *                 to legacy bare-DSL output for backward compatibility
  *              -> T2.2 RuleDslValidator on the expression
@@ -49,13 +54,19 @@ public class RuleGeneratorService {
 
     private final ObjectProvider<RuleDslGenerator> generatorProvider;
     private final RuleDslValidator dslValidator;
+    private final CustomOperatorRegistry registry;
+    private final QcOperatorTemplateRepository operatorRepo;
     private final ObjectMapper mapper;
 
     public RuleGeneratorService(ObjectProvider<RuleDslGenerator> generatorProvider,
                                 RuleDslValidator dslValidator,
+                                CustomOperatorRegistry registry,
+                                QcOperatorTemplateRepository operatorRepo,
                                 ObjectMapper mapper) {
         this.generatorProvider = generatorProvider;
         this.dslValidator = dslValidator;
+        this.registry = registry;
+        this.operatorRepo = operatorRepo;
         this.mapper = mapper;
     }
 
@@ -67,12 +78,12 @@ public class RuleGeneratorService {
         RuleDslGenerator gen = generatorProvider.getIfAvailable();
         if (gen == null) {
             throw new ServiceUnavailableException(
-                "LLM 未配置：请在 .env 设置 GEMINI_API_KEY 后重启后端");
+                "LLM 未配置：请在 .env 设置 DEEPSEEK_API_KEY 后重启后端");
         }
 
         String raw;
         try {
-            raw = gen.generate(naturalLanguage);
+            raw = gen.generate(naturalLanguage, buildOperatorsContext());
         } catch (RuntimeException e) {
             log.warn("LLM call failed for input '{}': {}",
                 truncateForLog(naturalLanguage), e.getMessage());
@@ -94,6 +105,9 @@ public class RuleGeneratorService {
                 + root.path("_requested").asText("?") + "'，请改用 30 个白名单字段中的一个",
                 clean);
         }
+
+        // Persist any new operator templates the model generated.
+        List<String> createdOperatorCodes = persistOperators(root);
 
         // Wrapper format: {expression, name, description, dimension, severity, errorMessageTemplate}
         // Legacy fallback: a bare DSL object (no "expression" key) -- treat the whole node as expression.
@@ -146,15 +160,104 @@ public class RuleGeneratorService {
             severity,
             errorMessageTemplate,
             errors,
-            null
+            null,
+            createdOperatorCodes
         );
+    }
+
+    /**
+     * Builds the string that replaces {@code {{CUSTOM_OPERATORS_PLACEHOLDER}}} in the
+     * system prompt. Returns a compact JSON array of operator summaries, or a
+     * human-readable note when the library is empty.
+     */
+    private String buildOperatorsContext() {
+        var ops = registry.all();
+        if (ops.isEmpty()) {
+            return "(none yet)";
+        }
+        try {
+            ArrayNode arr = mapper.createArrayNode();
+            for (QcOperatorTemplate t : ops) {
+                var obj = mapper.createObjectNode();
+                obj.put("code", t.getCode());
+                obj.put("name", t.getName());
+                if (t.getDescription() != null) obj.put("description", t.getDescription());
+                var params = mapper.createArrayNode();
+                t.getParameterNames().forEach(params::add);
+                obj.set("parameterNames", params);
+                obj.set("bodyDsl", t.getBodyDsl());
+                arr.add(obj);
+            }
+            return mapper.writeValueAsString(arr);
+        } catch (Exception e) {
+            log.warn("Failed to serialize operators context: {}", e.getMessage());
+            return "(serialization error)";
+        }
+    }
+
+    /**
+     * Reads the optional top-level {@code "operators"} array from the LLM response
+     * and persists any entries whose {@code code} is not already in the DB.
+     * Calls {@link CustomOperatorRegistry#reload()} if anything was actually created.
+     *
+     * @return codes of newly created operators (empty if none)
+     */
+    private List<String> persistOperators(JsonNode root) {
+        if (!root.isObject() || !root.has("operators")) return List.of();
+        JsonNode ops = root.get("operators");
+        if (!ops.isArray() || ops.isEmpty()) return List.of();
+
+        List<String> created = new ArrayList<>();
+        for (JsonNode op : ops) {
+            if (!op.isObject()) continue;
+            String code = textOrNull(op, "code");
+            if (code == null || code.isBlank()) {
+                log.warn("LLM returned operator with missing code, skipping");
+                continue;
+            }
+            if (operatorRepo.existsByCode(code)) {
+                log.info("Custom operator '{}' already exists, skipping auto-create", code);
+                continue;
+            }
+
+            JsonNode bodyDsl = op.get("bodyDsl");
+            if (bodyDsl == null || bodyDsl.isNull()) {
+                log.warn("LLM operator '{}' has no bodyDsl, skipping", code);
+                continue;
+            }
+
+            QcOperatorTemplate t = new QcOperatorTemplate();
+            t.setCode(code);
+            t.setName(textOrNullFallback(op, "name", code));
+            t.setDescription(textOrNull(op, "description"));
+            t.setBodyDsl(bodyDsl);
+
+            List<String> paramNames = new ArrayList<>();
+            JsonNode params = op.get("parameterNames");
+            if (params != null && params.isArray()) {
+                for (JsonNode p : params) {
+                    if (p.isTextual()) paramNames.add(p.asText());
+                }
+            }
+            t.setParameterNames(paramNames);
+
+            operatorRepo.save(t);
+            created.add(code);
+            log.info("Auto-created custom operator '{}' from NL rule generation", code);
+        }
+
+        if (!created.isEmpty()) {
+            registry.reload();
+        }
+        return created;
     }
 
     private static NlRuleResponse error(String message, String rawOutput) {
         return new NlRuleResponse(
             null, null, null, null, null, null,
             List.of(message),
-            rawOutput
+            rawOutput,
+            List.of()
         );
     }
 
@@ -164,6 +267,11 @@ public class RuleGeneratorService {
         if (!v.isTextual()) return null;
         String s = v.asText().trim();
         return s.isEmpty() ? null : s;
+    }
+
+    private static String textOrNullFallback(JsonNode node, String field, String fallback) {
+        String v = textOrNull(node, field);
+        return v != null ? v : fallback;
     }
 
     /**
