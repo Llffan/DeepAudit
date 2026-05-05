@@ -1503,7 +1503,7 @@ watch(
 .record-form :deep(.el-form-item__label) {
   font-size: 0.85rem;
   color: #555;
-  padding-right: 10px !important; /* label 与输入框固定 10px 间距 */
+  padding-right: 4px !important;  /* label 紧贴输入框：固定 4px */
   line-height: 1.3;
   white-space: nowrap;            /* 字段名不换行 */
   width: auto !important;         /* 按自身内容收缩，不和别人对齐 */
