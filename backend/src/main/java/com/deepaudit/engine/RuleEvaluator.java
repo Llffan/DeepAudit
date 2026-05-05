@@ -2,6 +2,10 @@ package com.deepaudit.engine;
 
 import com.deepaudit.persistence.entity.MedicalRecordMain;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -32,6 +36,12 @@ import java.util.stream.StreamSupport;
  */
 @Component
 public class RuleEvaluator {
+
+    private final CustomOperatorRegistry customRegistry;
+
+    public RuleEvaluator(CustomOperatorRegistry customRegistry) {
+        this.customRegistry = customRegistry;
+    }
 
     public boolean evaluate(JsonNode dsl, MedicalRecordMain record) {
         if (dsl == null) {
@@ -77,6 +87,16 @@ public class RuleEvaluator {
                 FieldAccessor.get(requireField(n, op), rec),
                 evalValue(requireChild(n, "rhs", op), rec), 1);
 
+            case "custom" -> {
+                String code = requireText(n, "code", "custom");
+                JsonNode bodyDsl = customRegistry.getBodyDsl(code);
+                if (bodyDsl == null) {
+                    throw new IllegalArgumentException("Unknown custom operator: '" + code + "'");
+                }
+                JsonNode args = n.has("args") ? n.get("args") : JsonNodeFactory.instance.objectNode();
+                yield evalBool(substituteRefs(bodyDsl, args), rec);
+            }
+
             default -> throw new IllegalArgumentException("Unknown op: " + op);
         };
     }
@@ -94,14 +114,19 @@ public class RuleEvaluator {
             if (n.has("field") && !n.has("op")) {
                 return FieldAccessor.get(n.get("field").asText(), rec);
             }
-            // Computed value: dateDiffDays(from, to) -> int days
-            if (n.has("op") && "dateDiffDays".equals(n.get("op").asText())) {
-                Object from = FieldAccessor.get(requireText(n, "from", "dateDiffDays"), rec);
-                Object to   = FieldAccessor.get(requireText(n, "to",   "dateDiffDays"), rec);
-                if (!(from instanceof LocalDate fl) || !(to instanceof LocalDate tl)) {
-                    return null;
-                }
+            // Computed values: dateDiffDays / ageYears
+            String vop = n.has("op") ? n.get("op").asText() : "";
+            if ("dateDiffDays".equals(vop)) {
+                Object from = resolveField(n, "from", "dateDiffDays", rec);
+                Object to   = resolveField(n, "to",   "dateDiffDays", rec);
+                if (!(from instanceof LocalDate fl) || !(to instanceof LocalDate tl)) return null;
                 return (int) ChronoUnit.DAYS.between(fl, tl);
+            }
+            if ("ageYears".equals(vop)) {
+                Object bd = resolveField(n, "birthDate", "ageYears", rec);
+                Object rd = resolveField(n, "refDate",   "ageYears", rec);
+                if (!(bd instanceof LocalDate bdl) || !(rd instanceof LocalDate rdl)) return null;
+                return (int) ChronoUnit.YEARS.between(bdl, rdl);
             }
         }
         throw new IllegalArgumentException("Cannot evaluate value expression: " + n);
@@ -192,5 +217,52 @@ public class RuleEvaluator {
                 "Op '" + op + "' requires textual '" + key + "' operand: " + n);
         }
         return child.asText();
+    }
+
+    // ----- custom operator template expansion --------------------------------
+
+    /**
+     * Recursively replaces every {@code {"$ref":"paramName"}} node in the
+     * template body with the corresponding string value from {@code args}.
+     * All other nodes are returned as-is (structurally shared, not copied).
+     */
+    private static JsonNode substituteRefs(JsonNode node, JsonNode args) {
+        if (node.isObject()) {
+            if (node.size() == 1 && node.has("$ref")) {
+                String param = node.get("$ref").asText();
+                JsonNode val = args.get(param);
+                if (val == null) {
+                    throw new IllegalArgumentException(
+                        "Custom op: missing argument '" + param + "'");
+                }
+                return val;
+            }
+            ObjectNode result = JsonNodeFactory.instance.objectNode();
+            node.fieldNames().forEachRemaining(k ->
+                result.set(k, substituteRefs(node.get(k), args)));
+            return result;
+        }
+        if (node.isArray()) {
+            ArrayNode result = JsonNodeFactory.instance.arrayNode();
+            node.forEach(item -> result.add(substituteRefs(item, args)));
+            return result;
+        }
+        return node;
+    }
+
+    /**
+     * Reads a field name from a DSL node key, then fetches the field value
+     * from the record. The key's value may be either a plain string (field name)
+     * or already a resolved TextNode after {@link #substituteRefs}.
+     */
+    private static Object resolveField(JsonNode n, String key, String op, MedicalRecordMain rec) {
+        JsonNode child = n.get(key);
+        if (child == null) {
+            throw new IllegalArgumentException("Op '" + op + "' missing '" + key + "': " + n);
+        }
+        String fieldName = child.isTextual() ? child.asText()
+            : child instanceof TextNode tn ? tn.asText()
+            : child.asText();
+        return FieldAccessor.get(fieldName, rec);
     }
 }

@@ -38,12 +38,14 @@ public class RuleDslValidator {
         "and", "or", "not",
         "notNull", "isNull",
         "eq", "ne", "gt", "gte", "lt", "lte",
-        "dateBefore", "dateAfter"
+        "dateBefore", "dateAfter",
+        "custom"
     );
 
     /** Operators that yield a value (only valid in rhs / from / to slots). */
     public static final Set<String> VALUE_OPS = Set.of(
-        "dateDiffDays"
+        "dateDiffDays",
+        "ageYears"
     );
 
     public ValidationResult validate(JsonNode dsl) {
@@ -135,6 +137,16 @@ public class RuleDslValidator {
                     validateValue(rhs, path + ".rhs", errors);
                 }
             }
+            case "custom" -> {
+                JsonNode code = n.get("code");
+                if (code == null || !code.isTextual() || code.asText().isBlank()) {
+                    errors.add(path + ".code: required non-empty string (custom operator code)");
+                }
+                JsonNode args = n.get("args");
+                if (args != null && !args.isObject()) {
+                    errors.add(path + ".args: must be an object of {paramName: fieldName} bindings");
+                }
+            }
             default -> errors.add(path + ": op '" + op + "' is whitelisted but unhandled (validator bug)");
         }
     }
@@ -179,6 +191,10 @@ public class RuleDslValidator {
             requireWhitelistedField(n, "from", path, errors);
             requireWhitelistedField(n, "to",   path, errors);
         }
+        if ("ageYears".equals(op)) {
+            requireWhitelistedFieldOrRef(n, "birthDate", path, errors);
+            requireWhitelistedFieldOrRef(n, "refDate",   path, errors);
+        }
     }
 
     private static void requireWhitelistedField(
@@ -192,6 +208,25 @@ public class RuleDslValidator {
         if (!FieldAccessor.isKnown(name)) {
             errors.add(path + "." + key + ": unknown field '" + name
                 + "' (must be one of the 30 curated fields)");
+        }
+    }
+
+    /** Like requireWhitelistedField but also accepts {"$ref":"paramName"} placeholder nodes. */
+    private static void requireWhitelistedFieldOrRef(
+            JsonNode n, String key, String path, List<String> errors) {
+        JsonNode f = n.get(key);
+        if (f == null) {
+            errors.add(path + "." + key + ": required (field name or {\"$ref\":\"param\"})");
+            return;
+        }
+        if (f.isObject() && f.has("$ref")) return; // template placeholder, accepted
+        if (!f.isTextual()) {
+            errors.add(path + "." + key + ": must be a field name string or {\"$ref\":\"param\"}");
+            return;
+        }
+        String name = f.asText();
+        if (!FieldAccessor.isKnown(name)) {
+            errors.add(path + "." + key + ": unknown field '" + name + "'");
         }
     }
 
