@@ -845,7 +845,7 @@ watch(
       <el-row :gutter="16">
         <el-col :span="5">
           <el-form-item label="证件类型">
-            <el-select v-model="form.idCardType" clearable>
+            <el-select v-model="form.idCardType" clearable placeholder="">
               <el-option v-for="o in ID_CARD_TYPE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -862,7 +862,7 @@ watch(
         </el-col>
         <el-col :span="6">
           <el-form-item label="婚姻">
-            <el-select v-model="form.maritalStatus" clearable>
+            <el-select v-model="form.maritalStatus" clearable placeholder="">
               <el-option v-for="o in MARITAL_STATUS_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -930,7 +930,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="关系">
-            <el-select v-model="form.contactRelation" clearable>
+            <el-select v-model="form.contactRelation" clearable placeholder="">
               <el-option v-for="o in CONTACT_RELATION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -951,7 +951,7 @@ watch(
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="入院途径">
-            <el-select v-model="form.admissionRoute" clearable>
+            <el-select v-model="form.admissionRoute" clearable placeholder="">
               <el-option v-for="o in ADMISSION_ROUTE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -1021,7 +1021,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="入院情况">
-            <el-select v-model="form.outpatientAdmissionCondition" clearable>
+            <el-select v-model="form.outpatientAdmissionCondition" clearable placeholder="">
               <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -1070,6 +1070,7 @@ watch(
                 :model-value="form.mainAdmissionCondition"
                 @update:model-value="(v) => form.mainAdmissionCondition = v || null"
                 clearable
+                placeholder=""
               >
                 <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
@@ -1080,6 +1081,7 @@ watch(
                 :model-value="form.mainDischargeCondition"
                 @update:model-value="(v) => form.mainDischargeCondition = v || null"
                 clearable
+                placeholder=""
               >
                 <el-option v-for="o in DISCHARGE_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
@@ -1092,12 +1094,12 @@ watch(
             <td><el-input size="small" v-model="d.diagnosisName" /></td>
             <td><el-input size="small" v-model="d.diagnosisCode" /></td>
             <td>
-              <el-select size="small" v-model="d.admissionCondition" clearable>
+              <el-select size="small" v-model="d.admissionCondition" clearable placeholder="">
                 <el-option v-for="o in ADMISSION_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
             </td>
             <td>
-              <el-select size="small" v-model="d.dischargeCondition" clearable>
+              <el-select size="small" v-model="d.dischargeCondition" clearable placeholder="">
                 <el-option v-for="o in DISCHARGE_CONDITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
             </td>
@@ -1143,7 +1145,7 @@ watch(
         </el-col>
         <el-col :span="4">
           <el-form-item label="麻醉方式">
-            <el-select v-model="form.anesthesiaMethod" clearable>
+            <el-select v-model="form.anesthesiaMethod" clearable placeholder="">
               <el-option
                 v-for="o in ANESTHESIA_OPTIONS"
                 :key="o.value"
