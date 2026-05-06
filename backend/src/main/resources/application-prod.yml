@@ -1,10 +1,14 @@
+# Production / 私密环境的 Spring 覆盖配置。
+#
+# 通过 application.yml 中的 `spring.config.import: optional:application-prod.yml`
+# 在所有环境无条件 import（optional 表示文件缺失也不报错）。仅当此文件存在
+# 时其值覆盖 application.yml 中的同名键。
+#
+# 真实密钥**仍然**只放宿主 .env，由 docker-compose / 进程环境变量注入；
+# 此文件只能写 ${ENV_VAR:} 占位符。所有占位符都必须带冒号默认值，否则
+# 缺变量时 Spring 启动会抛 PlaceholderResolutionException 直接挂掉。
 deepaudit:
   llm:
-    # 生产/私密配置文件。此文件已被加入 .gitignore，不会被提交。
-    # 存放真实的 API Key，防止泄露。
-    api-key: ${DEEPSEEK_API_KEY}
-
-services:
-  backend:
-    environment:
-      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+    api-key: ${DEEPSEEK_API_KEY:}
+    embedding:
+      api-key: ${DASHSCOPE_API_KEY:}
