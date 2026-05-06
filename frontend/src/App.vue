@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import IcdAssistantFloating from './components/IcdAssistantFloating.vue'
 </script>
 
 <template>
   <router-view />
+  <!-- 全局浮动 ICD 编码助手：跨路由保留状态与对话历史 -->
+  <IcdAssistantFloating />
 </template>
 
 <style>
