@@ -36,6 +36,8 @@ services:
       SPRING_DATASOURCE_USERNAME: deepaudit
       SPRING_DATASOURCE_PASSWORD: deepaudit
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
       DEEPAUDIT_UPLOAD_DIR: /app/uploads
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
     volumes:
