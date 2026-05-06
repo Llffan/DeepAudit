@@ -14,7 +14,10 @@ import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -175,13 +178,35 @@ public class SamplePdfTool {
             return "序列化失败：" + e.getMessage();
         }
 
+        // JSON 经命令行传给 Python 在 Windows 上会被 cmd.exe 啃掉双引号 ——
+        // 实测 fields-json 字符串到 Python 端已残缺，json.loads 直接抛
+        // JSONDecodeError。改为写临时文件 + 传文件路径，跨平台 100% 干净。
+        // 文件落在 outputDir 下并带 recordId/uuid 前缀方便排错；用完删除。
+        Path fieldsFile;
+        try {
+            Files.createDirectories(outputDir);
+            fieldsFile = Files.createTempFile(
+                outputDir, "fields_record_" + recordId + "_", ".json");
+            Files.writeString(fieldsFile, fieldsJson, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return "写入临时字段文件失败：" + e.getMessage();
+        }
+
         List<String> cmd = new ArrayList<>(List.of(
             "python", "-m", "sample_pdf.cli",
             "--out-dir", outputDir.toString(),
             "--prefix", "record_" + recordId,
-            "--fields-json", fieldsJson
+            "--fields-json-file", fieldsFile.toString()
         ));
-        return run(cmd);
+        try {
+            return run(cmd);
+        } finally {
+            try {
+                Files.deleteIfExists(fieldsFile);
+            } catch (IOException ignored) {
+                // 删除失败也不阻塞导出结果，下次启动 outputDir 整体清理时兜底
+            }
+        }
     }
 
     private static void put(Map<String, String> map, String key, Object value) {

@@ -39,6 +39,12 @@ def parse_args(argv: list[str] | None = None):
     p.add_argument("--fields-json", type=str, default=None,
                    help="JSON object of HQMS field values; renders one PDF from DB "
                         "data, bypassing mock generator (ignores --count/--error-rate/--traps)")
+    # --fields-json-file 是 --fields-json 的文件版，给 Java 调用方避开 Windows
+    # cmd.exe 对 JSON 内嵌双引号的转义破坏（直接传 JSON 字符串在 Linux 没问题，
+    # 在 Windows 几乎必坏）。两个参数互斥，--fields-json-file 优先。
+    p.add_argument("--fields-json-file", type=Path, default=None,
+                   help="Path to a UTF-8 JSON file; preferred over --fields-json on "
+                        "Windows callers. Same semantics as --fields-json.")
     return p.parse_args(argv)
 
 
@@ -46,10 +52,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    # --fields-json path: render one PDF from pre-populated DB fields
-    if args.fields_json:
+    # --fields-json[-file] path: render one PDF from pre-populated DB fields.
+    # File 形式优先，绕开 Windows 命令行对 JSON 引号的转义破坏。
+    if args.fields_json_file or args.fields_json:
         import json as _json
-        fields = _json.loads(args.fields_json)
+        if args.fields_json_file:
+            fields = _json.loads(args.fields_json_file.read_text(encoding="utf-8"))
+        else:
+            fields = _json.loads(args.fields_json)
         pdf_path = args.out_dir / f"{args.prefix}_db_export.pdf"
         gt = render_from_fields(fields, pdf_path, hospital_name=args.hospital)
         traps_str = ", ".join(t["trap"] for t in gt["traps"]) or "db_export"
