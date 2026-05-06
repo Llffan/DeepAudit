@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://db:5432/deepaudit
+    username: deepaudit
+    password: deepaudit
+
+# 真实密钥**仅**通过宿主 .env → docker-compose 透传到容器环境变量。
+# 历史上这里曾把 Gemini key 硬编码当默认值，已泄漏到 git，现已强制空默认。
+# 缺 key 时对应能力降级，规则引擎不依赖任何 key。
+deepaudit:
+  llm:
+    # 主 chat key — 现已切到 DeepSeek（DEEPSEEK_API_KEY），保留这一项是历史
+    # Gemini 链路兼容；不需要 Gemini 时留空即可。
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com/v1}
+    chat-model: ${DEEPSEEK_CHAT_MODEL:deepseek-chat}
+    embedding:
+      api-key: ${DASHSCOPE_API_KEY:}
+      base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      model: ${DASHSCOPE_EMBEDDING_MODEL:text-embedding-v3}
+      dimensions: 1024
