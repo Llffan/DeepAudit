@@ -11,8 +11,9 @@
 # application-docker.yml 现已只含 ${ENV_VAR:} 占位符，不再含明文密钥，
 # 重新纳入版本库便于团队同步 docker profile 配置。任何向其填写真实
 # 密钥的提交都会破坏此约定 —— 提交前务必 git diff 检查。
-# application-prod.yml 仍预防性忽略；本仓库目前没有此文件。
-backend/src/main/resources/application-prod.yml
+# application-prod.yml 现已纳入版本库，建议仅包含占位符，不含明文密钥。
+# 提交前务必 git diff 检查。
+
 *.pem
 *.key
 .token

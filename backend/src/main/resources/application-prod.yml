@@ -1,0 +1,10 @@
+deepaudit:
+  llm:
+    # 生产/私密配置文件。此文件已被加入 .gitignore，不会被提交。
+    # 存放真实的 API Key，防止泄露。
+    api-key: ${DEEPSEEK_API_KEY}
+
+services:
+  backend:
+    environment:
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
