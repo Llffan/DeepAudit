@@ -225,6 +225,8 @@ const SEVERITY_LABELS: Record<string, string> = {
 
 <style scoped>
 .page {
+  max-width: 1100px;
+  margin: 0 auto;
   padding: 1.5rem;
 }
 

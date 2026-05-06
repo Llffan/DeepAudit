@@ -612,6 +612,8 @@ function fmtTs(s: string | null) {
 
 <style scoped>
 .page {
+  max-width: 1100px;
+  margin: 0 auto;
   padding: 1.5rem;
 }
 

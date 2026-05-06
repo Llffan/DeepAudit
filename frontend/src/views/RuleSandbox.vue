@@ -311,7 +311,7 @@ function metaFor(r: DryRunResponse): ResultMeta {
 </template>
 
 <style scoped>
-.page { padding: 1.5rem; }
+.page { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
 
 .page-header { margin-bottom: 1rem; }
 .page-header h2 { margin: 0 0 0.35rem; font-size: 1.25rem; color: #1f1f1f; }

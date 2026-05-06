@@ -56,7 +56,7 @@ onMounted(checkBackend);
 </template>
 
 <style scoped>
-.landing { max-width: 720px; margin: 4rem auto; padding: 0 1rem; }
+.landing { max-width: 720px; margin: 4rem auto; padding: 0 1.5rem; }
 .tagline { color: #666; }
 .entry-nav { margin-top: 1.5rem; }
 .status { margin-top: 2rem; padding: 1rem 1.5rem; border: 1px solid #eee; border-radius: 8px; }

@@ -263,6 +263,8 @@ const tableHeight = computed(() => 'calc(100vh - 290px)');
 
 <style scoped>
 .page {
+  max-width: 1100px;
+  margin: 0 auto;
   padding: 1.5rem;
 }
 

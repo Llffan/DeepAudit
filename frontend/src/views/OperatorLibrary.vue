@@ -450,7 +450,7 @@ function fmtTime(s: string | null) {
 </template>
 
 <style scoped>
-.page { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+.page { max-width: 1100px; margin: 0 auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
 
 .section-card { background: #fff; }
 
