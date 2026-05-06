@@ -1,6 +1,7 @@
 package com.deepaudit.engine;
 
 import com.deepaudit.persistence.entity.MedicalRecordMain;
+import com.deepaudit.service.EmbeddingService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +13,9 @@ import java.time.LocalDate;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Plan §10 T2.1 mandates "约 200 行，含单元测试覆盖 R1/R2". This suite
@@ -24,11 +28,20 @@ class RuleEvaluatorTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     // null repositories are safe: CustomOperatorRegistry.cache and
     // IcdDictCache.keys both default to empty collections; this suite does
-    // not exercise the 'custom' or 'icdCodeExists' ops, so the registries
-    // are never asked to call back into the (null) repository.
+    // not exercise the 'custom', 'icdCodeExists', or 'icdNameSimilar' ops,
+    // so the registries / embedding service are never asked to call back
+    // into the (null) repository or hit DashScope.
+    private static EmbeddingService stubEmbeddingService() {
+        EmbeddingService stub = mock(EmbeddingService.class);
+        when(stub.isAvailable()).thenReturn(false);
+        when(stub.embed(any())).thenReturn(null);
+        return stub;
+    }
+
     private final RuleEvaluator evaluator = new RuleEvaluator(
         new CustomOperatorRegistry(null),
-        new IcdDictCache(null));
+        new IcdDictCache(null),
+        stubEmbeddingService());
 
     /** R-PATH -- 病理诊断非空时，病理编码与病理号不能为空（V9 等价示例，
      *           原 R001 引用的手术字段已在 V9 下线）. */

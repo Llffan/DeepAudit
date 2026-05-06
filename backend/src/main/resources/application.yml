@@ -87,6 +87,16 @@ deepaudit:
     chat-model: deepseek-chat
     timeout-seconds: 60
     max-retries: 2
+    # Embedding goes to Aliyun DashScope (OpenAI-compatible endpoint).
+    # text-embedding-v3 → 1024 维，对齐 V10 migration 的 VECTOR(1024)。
+    # Set DASHSCOPE_API_KEY env var to enable; absent → 字典向量召回降级跳过。
+    embedding:
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      api-key: ${DASHSCOPE_API_KEY:}
+      model: text-embedding-v3
+      dimensions: 1024
+      timeout-seconds: 30
+      max-retries: 2
 
 logging:
   level:
