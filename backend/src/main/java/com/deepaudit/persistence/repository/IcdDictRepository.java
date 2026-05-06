@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -21,6 +22,7 @@ public interface IcdDictRepository extends JpaRepository<IcdDict, Long> {
      * <p>Native query because JPA cannot express PostgreSQL ON CONFLICT.
      */
     @Modifying
+    @Transactional
     @Query(value = """
         INSERT INTO icd_dict (code, name, category, version, embedding_text, created_at)
         VALUES (:code, :name, :category, :version, :embeddingText, NOW())
@@ -51,6 +53,7 @@ public interface IcdDictRepository extends JpaRepository<IcdDict, Long> {
      * @return rows actually cleared
      */
     @Modifying
+    @Transactional
     @Query(value = "UPDATE icd_dict SET name_embedding = NULL WHERE name_embedding IS NOT NULL",
            nativeQuery = true)
     int clearAllEmbeddings();
