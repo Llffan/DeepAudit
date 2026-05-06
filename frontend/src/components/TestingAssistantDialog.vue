@@ -80,7 +80,7 @@ function onKeydown(e: KeyboardEvent) {
       <div class="ta-header">
         <el-icon><ChatRound /></el-icon>
         <span>测试助手</span>
-        <span class="ta-subtitle">Gemini · 可调用 PDF 生成器</span>
+        <span class="ta-subtitle">DeepSeek · 可调用 PDF 生成器</span>
       </div>
     </template>
 
