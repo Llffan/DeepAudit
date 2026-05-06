@@ -13,7 +13,7 @@ interface Msg {
 const messages = ref<Msg[]>([
   {
     role: 'assistant',
-    text: '你好！我是测试助手。\n告诉我你需要什么样的测试病案，例如：\n• "生成一个手术信息缺失的测试病案（R001 陷阱）"\n• "批量生成 5 张，一半有日期错误"\n• "生成一张干净的病案"',
+    text: '你好！我是病案导出助手。告诉我要导出的病案主键 ID，我会把数据库里的真实病案首页导出成 PDF。\n例如：\n• "把 ID=42 的病案导出成 PDF"\n• "导出病案 #100"\n• "ID 5 的病案打印一份"',
   },
 ])
 const input = ref('')
@@ -70,7 +70,7 @@ function onKeydown(e: KeyboardEvent) {
 <template>
   <el-dialog
     v-model="visible"
-    title="测试助手"
+    title="病案导出助手"
     width="480px"
     :append-to-body="true"
     draggable
@@ -79,8 +79,8 @@ function onKeydown(e: KeyboardEvent) {
     <template #header>
       <div class="ta-header">
         <el-icon><ChatRound /></el-icon>
-        <span>测试助手</span>
-        <span class="ta-subtitle">DeepSeek · 可调用 PDF 生成器</span>
+        <span>病案导出助手</span>
+        <span class="ta-subtitle">DeepSeek · 按 ID 导出真实病案 PDF</span>
       </div>
     </template>
 
@@ -106,7 +106,7 @@ function onKeydown(e: KeyboardEvent) {
           v-model="input"
           type="textarea"
           :rows="2"
-          placeholder="描述你需要的测试病案，Enter 发送…"
+          placeholder="告诉我要导出的病案 ID，Enter 发送…"
           resize="none"
           :disabled="loading"
           @keydown="onKeydown"

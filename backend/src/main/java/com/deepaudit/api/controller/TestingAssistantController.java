@@ -9,15 +9,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 测试助手对话接口。Gemini 通过 SamplePdfTool 的 @Tool 方法
- * 在服务端自主决定调用哪个 Python 生成器命令。
+ * 病案导出助手对话接口。DeepSeek 通过 SamplePdfTool 的 exportRecordAsPdf
+ * @Tool 方法把数据库里已有的病案首页按 ID 渲染为 PDF。
+ *
+ * <p>路由保留旧名 {@code /testing-assistant} 以兼容前端引用；后续重构时
+ * 再统一改为 {@code /record-export-assistant} 之类。
  *
  * POST /api/testing-assistant/chat  (context-path=/api + mapping=/testing-assistant)
- *   { "message": "帮我生成一个有 R001 手术信息缺失的测试病案" }
+ *   { "message": "把 ID=42 的病案导出成 PDF" }
  *   →
- *   { "reply": "已生成 data/samples/case_R001_abc123.pdf ..." }
+ *   { "reply": "已导出 data/samples/record_42_xxx.pdf ..." }
  *
- * LLM 不可用时（未配置 API Key）返回 503。
+ * LLM 不可用时（未配置 DEEPSEEK_API_KEY）返回 503。
  */
 @RestController
 @RequestMapping("/testing-assistant")
