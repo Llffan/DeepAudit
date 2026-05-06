@@ -155,10 +155,20 @@ public class IcdDictLoader implements ApplicationRunner {
                         log.debug("{}:{} no embedding_text in JSONL, falling back to '{}'",
                             fileName, lineNo, embeddingText);
                     }
-                    repository.upsert(code, name, category, version, embeddingText);
-                    loaded++;
+                    try {
+                        repository.upsert(code, name, category, version, embeddingText);
+                        loaded++;
+                    } catch (Exception dbErr) {
+                        // Surface DB-side errors (column-too-long, type mismatch,
+                        // constraint violations) distinctly from JSON parse errors —
+                        // they need different fixes (schema vs data).
+                        log.warn("{}:{} db upsert failed: {}",
+                            fileName, lineNo, rootCauseMessage(dbErr));
+                        skipped++;
+                    }
                 } catch (Exception parseErr) {
-                    log.warn("{}:{} parse failure: {}", fileName, lineNo, parseErr.getMessage());
+                    log.warn("{}:{} JSON parse failure: {}",
+                        fileName, lineNo, parseErr.getMessage());
                     skipped++;
                 }
             }
@@ -170,5 +180,20 @@ public class IcdDictLoader implements ApplicationRunner {
     private static String textOrEmpty(JsonNode n, String field) {
         JsonNode v = n.get(field);
         return (v == null || v.isNull()) ? "" : v.asText().trim();
+    }
+
+    /**
+     * Walk the cause chain to find the deepest non-null message — the JDBC
+     * driver's "ERROR: ..." sentence is usually a few wrappers below Spring's
+     * generic "JDBC exception executing SQL [...]" envelope, and surfacing
+     * the latter alone hides what actually went wrong (column-too-long etc.).
+     */
+    private static String rootCauseMessage(Throwable t) {
+        Throwable cur = t;
+        while (cur.getCause() != null && cur.getCause() != cur) {
+            cur = cur.getCause();
+        }
+        String msg = cur.getMessage();
+        return msg == null ? cur.getClass().getSimpleName() : msg;
     }
 }

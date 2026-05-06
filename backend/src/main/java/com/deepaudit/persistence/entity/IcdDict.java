@@ -40,7 +40,7 @@ public class IcdDict {
     @Column(nullable = false, length = 20)
     private String category;
 
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 64)
     private String version;
 
     @Type(VectorUserType.class)
