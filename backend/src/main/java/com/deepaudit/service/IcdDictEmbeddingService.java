@@ -47,10 +47,17 @@ public class IcdDictEmbeddingService {
     private static final Logger log = LoggerFactory.getLogger(IcdDictEmbeddingService.class);
 
     /**
-     * DashScope text-embedding-v3 accepts up to 25 inputs per call. Stay one
-     * under the limit so we don't have to special-case the last batch.
+     * DashScope text-embedding-v3 经 OpenAI 兼容端点
+     * (`https://dashscope.aliyuncs.com/compatible-mode/v1`) 调用时，单次
+     * input 数组**硬上限是 10**，超出立即 400 报
+     *   "batch size is invalid, it should not be larger than 10"
+     * （比原生 DashScope SDK 的 25 严，是兼容层做的额外限制）。
+     *
+     * 这条限制不在我们的代码里、不在 langchain4j 里、也不在 DashScope
+     * 主文档里 —— 只在 OpenAI 兼容模式的 API 错误响应里能看到，是
+     * 通过实测捕获的。如果未来兼容层放开到 25，提到 25；不然别动。
      */
-    private static final int BATCH_SIZE = 25;
+    private static final int BATCH_SIZE = 10;
 
     private final IcdDictRepository repository;
     private final EmbeddingService embeddingService;
