@@ -1,11 +1,14 @@
 package com.deepaudit.engine;
 
 import com.deepaudit.persistence.entity.MedicalRecordMain;
+import com.deepaudit.service.EmbeddingService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -37,12 +40,21 @@ import java.util.stream.StreamSupport;
 @Component
 public class RuleEvaluator {
 
+    private static final Logger log = LoggerFactory.getLogger(RuleEvaluator.class);
+
+    /** Default cosine-similarity floor for icdNameSimilar when DSL omits it. */
+    private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.6;
+
     private final CustomOperatorRegistry customRegistry;
     private final IcdDictCache icdDictCache;
+    private final EmbeddingService embeddingService;
 
-    public RuleEvaluator(CustomOperatorRegistry customRegistry, IcdDictCache icdDictCache) {
+    public RuleEvaluator(CustomOperatorRegistry customRegistry,
+                         IcdDictCache icdDictCache,
+                         EmbeddingService embeddingService) {
         this.customRegistry = customRegistry;
         this.icdDictCache = icdDictCache;
+        this.embeddingService = embeddingService;
     }
 
     public boolean evaluate(JsonNode dsl, MedicalRecordMain record) {
@@ -132,6 +144,65 @@ public class RuleEvaluator {
                 String dictName = icdDictCache.getName(codeVal.toString(), category);
                 if (dictName == null) yield true; // delegate to icdCodeExists
                 yield normalizeName(dictName).equals(normalizeName(nameVal.toString()));
+            }
+
+            // R-Cons-001 / R006: semantic name-vs-code consistency via cosine
+            // similarity against icd_dict.name_embedding. Used as a softer
+            // fallback when icdNameMatches' exact-string check is too strict
+            // (synonyms, alias names, abbreviations the operator typed in).
+            //
+            // Abstain semantics — this op deliberately yields TRUE in every
+            // ambiguous case so it never produces false positives on its own:
+            //   * code or name field null         → delegate to R001 / completeness
+            //   * dict row missing for that code  → delegate to icdCodeExists (R004)
+            //   * dict row's vector is NULL       → embedding hasn't been backfilled yet
+            //                                       (POST /admin/icd-dict/reembed),
+            //                                       not a quality issue with the record
+            //   * EmbeddingModel bean absent      → DASHSCOPE_API_KEY unset, log once
+            //                                       and pass — operator config issue,
+            //                                       not record content issue
+            //   * online embedding call failed    → transient, conservative pass
+            //
+            // Threshold: optional "threshold" arg in [0, 1]. Default 0.6 — picked
+            // so that synonym pairs ("阑尾切除"↔"其他阑尾切除术") clear it but
+            // unrelated names ("阑尾切除"↔"剖宫产术") fall well below. Operators
+            // can tune per-rule; lowering increases tolerance, raising tightens.
+            case "icdNameSimilar" -> {
+                String codeField = requireText(n, "codeField", "icdNameSimilar");
+                String nameField = requireText(n, "nameField", "icdNameSimilar");
+                String category  = requireText(n, "category",  "icdNameSimilar");
+                double threshold = n.has("threshold") && n.get("threshold").isNumber()
+                    ? n.get("threshold").asDouble()
+                    : DEFAULT_SIMILARITY_THRESHOLD;
+                if (threshold < 0.0 || threshold > 1.0) {
+                    throw new IllegalArgumentException(
+                        "icdNameSimilar.threshold must be in [0,1], got " + threshold);
+                }
+                Object codeVal = FieldAccessor.get(codeField, rec);
+                Object nameVal = FieldAccessor.get(nameField, rec);
+                if (codeVal == null || nameVal == null) yield true;
+                float[] dictVec = icdDictCache.getEmbedding(codeVal.toString(), category);
+                if (dictVec == null) {
+                    log.debug("icdNameSimilar abstain: no dict vector for {} ({})",
+                        codeVal, category);
+                    yield true;
+                }
+                if (!embeddingService.isAvailable()) {
+                    log.debug("icdNameSimilar abstain: EmbeddingModel bean absent");
+                    yield true;
+                }
+                float[] queryVec = embeddingService.embed(nameVal.toString());
+                if (queryVec == null) {
+                    log.debug("icdNameSimilar abstain: online embed of '{}' failed/empty",
+                        nameVal);
+                    yield true;
+                }
+                double sim = cosineSimilarity(queryVec, dictVec);
+                if (log.isDebugEnabled()) {
+                    log.debug("icdNameSimilar code={} name='{}' sim={} threshold={}",
+                        codeVal, nameVal, String.format("%.4f", sim), threshold);
+                }
+                yield sim >= threshold;
             }
 
             default -> throw new IllegalArgumentException("Unknown op: " + op);
@@ -235,6 +306,37 @@ public class RuleEvaluator {
     private static String normalizeName(String s) {
         if (s == null) return "";
         return s.trim().replaceAll("\\s+", " ");
+    }
+
+    /**
+     * Cosine similarity in {@code [-1, 1]} for two equal-length float
+     * vectors. Throws on length mismatch — that indicates the embedding
+     * dimension drifted between the dict-side build (DashScope batch via
+     * IcdDictEmbeddingService) and the query-side call (online embed of
+     * the record's name field) and the operator must reconcile config
+     * before similarity numbers are meaningful.
+     *
+     * <p>For zero-length or zero-magnitude inputs returns 0.0 — treated
+     * as "no signal" by the caller, which already yields {@code true}
+     * (abstain) when the dict-side vector is missing.
+     */
+    private static double cosineSimilarity(float[] a, float[] b) {
+        if (a == null || b == null || a.length == 0 || b.length == 0) return 0.0;
+        if (a.length != b.length) {
+            throw new IllegalStateException(
+                "Embedding dimension mismatch: query=" + a.length + " dict=" + b.length
+                + " — re-run /admin/icd-dict/reembed?mode=all after a model/dim change");
+        }
+        double dot = 0.0;
+        double normA = 0.0;
+        double normB = 0.0;
+        for (int i = 0; i < a.length; i++) {
+            dot   += (double) a[i] * b[i];
+            normA += (double) a[i] * a[i];
+            normB += (double) b[i] * b[i];
+        }
+        if (normA == 0.0 || normB == 0.0) return 0.0;
+        return dot / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 
     // ----- DSL structure helpers (better errors than raw NPE) --------------

@@ -41,7 +41,8 @@ public class RuleDslValidator {
         "dateBefore", "dateAfter",
         "custom",
         "icdCodeExists",
-        "icdNameMatches"
+        "icdNameMatches",
+        "icdNameSimilar"
     );
 
     /** Categories accepted by the {@code icdCodeExists} op (matches V1 schema CHECK constraint). */
@@ -165,6 +166,25 @@ public class RuleDslValidator {
                 JsonNode cat = n.get("category");
                 if (cat == null || !cat.isTextual() || !ICD_CATEGORIES.contains(cat.asText())) {
                     errors.add(path + ".category: must be one of " + ICD_CATEGORIES);
+                }
+            }
+            case "icdNameSimilar" -> {
+                requireWhitelistedField(n, "codeField", path, errors);
+                requireWhitelistedField(n, "nameField", path, errors);
+                JsonNode cat = n.get("category");
+                if (cat == null || !cat.isTextual() || !ICD_CATEGORIES.contains(cat.asText())) {
+                    errors.add(path + ".category: must be one of " + ICD_CATEGORIES);
+                }
+                JsonNode th = n.get("threshold");
+                if (th != null) {
+                    if (!th.isNumber()) {
+                        errors.add(path + ".threshold: must be a number in [0,1] when present");
+                    } else {
+                        double v = th.asDouble();
+                        if (v < 0.0 || v > 1.0) {
+                            errors.add(path + ".threshold: must be in [0,1], got " + v);
+                        }
+                    }
                 }
             }
             default -> errors.add(path + ": op '" + op + "' is whitelisted but unhandled (validator bug)");

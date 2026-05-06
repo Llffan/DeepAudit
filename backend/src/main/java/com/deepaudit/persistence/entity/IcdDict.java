@@ -44,8 +44,18 @@ public class IcdDict {
     private String version;
 
     @Type(VectorUserType.class)
-    @Column(name = "name_embedding", columnDefinition = "vector(768)")
+    @Column(name = "name_embedding", columnDefinition = "vector(1024)")
     private float[] nameEmbedding;
+
+    /**
+     * Precomposed source text for the embedding model — typically
+     * {@code "<code> <name> <alias1> <alias2> ..."}. Loaded from the JSONL
+     * {@code embedding_text} field; fallback synthesized as code+name when
+     * the JSONL omits it. Keep this aligned with what fed name_embedding,
+     * otherwise re-embed runs drift apart from the live vector.
+     */
+    @Column(name = "embedding_text", nullable = false, columnDefinition = "TEXT")
+    private String embeddingText;
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
@@ -67,6 +77,8 @@ public class IcdDict {
     public void setVersion(String version) { this.version = version; }
     public float[] getNameEmbedding() { return nameEmbedding; }
     public void setNameEmbedding(float[] nameEmbedding) { this.nameEmbedding = nameEmbedding; }
+    public String getEmbeddingText() { return embeddingText; }
+    public void setEmbeddingText(String embeddingText) { this.embeddingText = embeddingText; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
 }

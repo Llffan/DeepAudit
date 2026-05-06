@@ -145,7 +145,17 @@ public class IcdDictLoader implements ApplicationRunner {
                         skipped++;
                         continue;
                     }
-                    repository.upsert(code, name, category, version);
+                    // embedding_text is optional in the JSONL — fall back to
+                    // "code name" so the column is never NULL (V11 makes it
+                    // NOT NULL). Aliases-rich source files yield much better
+                    // recall, so the warning helps spot drift.
+                    String embeddingText = textOrEmpty(n, "embedding_text");
+                    if (embeddingText.isEmpty()) {
+                        embeddingText = code + " " + name;
+                        log.debug("{}:{} no embedding_text in JSONL, falling back to '{}'",
+                            fileName, lineNo, embeddingText);
+                    }
+                    repository.upsert(code, name, category, version, embeddingText);
                     loaded++;
                 } catch (Exception parseErr) {
                     log.warn("{}:{} parse failure: {}", fileName, lineNo, parseErr.getMessage());
